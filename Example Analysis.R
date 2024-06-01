@@ -44,7 +44,7 @@
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 # Load Libraries ----
-## Data Reading
+## Data Reading 
 library(data.table) # Read csv in tibble format
 library(readxl) # Read xlsx 
 
@@ -68,30 +68,20 @@ library(tidyverse)
 
 
 # Read in data =============================================================================================
-
-
+# Using membersurvey data from surveydata package
+survey_data <- membersurvey
+survey_labels <- varlabels(survey_data)
+view(survey_labels)
 
 ## Clean data ----
 
 # Analysis =================================================================================================
 
-## Research Question 1 ------------------------------------------------------------------------------------
+## Quantitative ----
 
-### Quantitative ----
+## Qualitative ----
 
-### Qualitative ----
 
-## Research Question 2 ------------------------------------------------------------------------------------
-
-### Quantitative ----
-
-### Qualitative ----
-
-## Research Question 3 ------------------------------------------------------------------------------------
-
-### Quantitative ----
-
-### Qualitative ----
 
 
 
