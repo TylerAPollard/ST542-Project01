@@ -316,6 +316,21 @@ notionalSSTEM3 <- left_join(
 
 notionalSSTEM4 <- notionalSSTEM3 |>
   mutate(
+    #### Update Starting Values ----
+    ## Adding some variance so each level of Q1 is the exact same
+    Q6_1 = Q6_1 + sample(c(-1, 0, 1), size = nSTEM, prob = c(1/3, 1/3, 1/3), replace = TRUE),
+    Q23_1 = Q23_1 + sample(c(-1, 0, 1), size = nSTEM, prob = c(1/3, 1/3, 1/3), replace = TRUE),
+    Q24_1 = Q24_1 + sample(c(-1, 0, 1), size = nSTEM, prob = c(1/3, 1/3, 1/3), replace = TRUE)
+  ) |>
+  mutate(
+    Q6_1 = ifelse(Q6_1 <= 1, 1,
+                  ifelse(Q6_1 >= 5, 5, Q6_1)),
+    Q23_1 = ifelse(Q23_1 <= 1, 1,
+                  ifelse(Q23_1 >= 5, 5, Q23_1)),
+    Q24_1 = ifelse(Q24_1 <= 1, 1,
+                  ifelse(Q24_1 >= 5, 5, Q24_1))
+  ) |>
+  mutate(
     #### Math ----
     Q6_2 = Q6_1 + round(rnorm(nSTEM, 0, 1)),
     Q6_3 = Q6_1 + round(rnorm(nSTEM, 0, 1.5)), # Negative worded

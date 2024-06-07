@@ -60,20 +60,24 @@ library(likert)
 library(lme4)
 library(car)
 library(emmeans)
+library(betareg)
 
 ## Bayesian Data Analysis
 library(DescTools)
 library(rstanarm)
+library(brms)
 library(posterior)
 library(bayesplot)
 library(BayesFactor)
+library(rjags)
 
 ## Load this package last to reduce package conflictions with dplyr
 library(tidyverse) 
 
 
-# Read in data =============================================================================================
-## Survey Data Question Mapping ----
+# S-STEM SURVEY =============================================================================================
+## Read in Data ----
+### Survey Data Question Mapping ----
 list.files("Data")
 emptySSTEM <- read_excel("Data/S-STEM+-+DeSIRE_June+6,+2024_09.13_blank.xlsx")
 SSTEMquestions <- unlist(emptySSTEM[1,])
@@ -81,7 +85,7 @@ SSTEMquestions
 
 STEMcolnames <- colnames(emptySSTEM)
 
-## S-STEM Survey Data ----
+### Survey Data ----
 SSTEMsurvey_data <- read_excel("Data/Notional S-STEM Survey Data Generated.xlsx")
 
 ## Clean data ----
@@ -133,59 +137,105 @@ SSTEMsurvey2 <- SSTEMsurvey |>
                   levels = c("American Indian/Alaska Native",
                              "Asian",
                              "Black/African American",
-                             #"Native Hawaiian/Other Pacific Islander",
+                             "Native Hawaiian/Other Pacific Islander",
                              "White/Caucasian",
-                             "Hispanic/Latino"
-                             #"Multracial",
-                             #"Other")
-                             )
-    ),
-    Race = fct_recode(Race, 
-                      "American Indian_Alaska Native" = "American Indian/Alaska Native",
-                      "Black_African American" = "Black/African American",
-                      "White_Caucasian" = "White/Caucasian",
-                      "Hispanic_Latino" = "Hispanic/Latino")
-  )
-
-# Analysis =================================================================================================
-SSTEMsurvey3 <- SSTEMsurvey2 |>
+                             "Hispanic/Latino",
+                             "Multracial",
+                             "Other"
+                  )
+    )
+  ) |>
   mutate(
-    across(which(str_detect(colnames(SSTEMsurvey), pattern = "Q")), 
-           ~ factor(.x, levels = c(1,2,3,4,5)))
+    Race = droplevels(Race)
   )
 
-## Quantitative ----
-### Summary Statistics ----
-table(SSTEMsurvey3$School)
-table(SSTEMsurvey3$Grade)
-table(SSTEMsurvey3$Gender)
-table(SSTEMsurvey3$Race)
+levels(SSTEMsurvey2$Race)
+
+# Change level names so they don't include "/" becuase it messes with regression
+SSTEMsurvey2$Race = fct_recode(SSTEMsurvey2$Race,
+                               "American Indian_Alaska Native" = "American Indian/Alaska Native",
+                               "Black_African American" = "Black/African American",
+                               "White_Caucasian" = "White/Caucasian",
+                               "Hispanic_Latino" = "Hispanic/Latino")
+levels(SSTEMsurvey2$Race)
 
 
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-### Self-efficacy ----
-#### Math ----
-##### Survey Response Distributions ----
-SSTEM_Math_df <- data.frame(SSTEMsurvey3 |> select(str_subset(colnames(SSTEMsurvey), pattern = "Q6")))
+# RESEARCH QUESTION 1 =====================================================================================
+
+# RESEARCH QUESTION 2 =====================================================================================
+## S-STEM Sample Sizes ----
+### By Each Factor ----
+table(SSTEMsurvey2$School)
+table(SSTEMsurvey2$Grade)
+table(SSTEMsurvey2$Gender)
+table(SSTEMsurvey2$Race)
+
+### All combinations ----
+SSTEM_SampleSizes_All <- ddply(SSTEMsurvey2, .(School, Grade, Gender, Race), summarize,
+                               n = n())
+SSTEM_SampleSizes_All
+
+### Interactions ----
+SSTEM_SampleSizes_SchoolGrade <- ddply(SSTEMsurvey2, .(School, Grade), summarize,
+                                       n = n())
+SSTEM_SampleSizes_SchoolGender <- ddply(SSTEMsurvey2, .(School, Gender), summarize,
+                                        n = n())
+SSTEM_SampleSizes_SchoolRace <- ddply(SSTEMsurvey2, .(School, Race), summarize,
+                                      n = n())
+SSTEM_SampleSizes_GradeGender <- ddply(SSTEMsurvey2, .(Grade, Gender), summarize,
+                                       n = n())
+SSTEM_SampleSizes_GradeRace <- ddply(SSTEMsurvey2, .(Grade, Race), summarize,
+                                     n = n())
+SSTEM_SampleSizes_GenderRace <- ddply(SSTEMsurvey2, .(Gender, Race), summarize,
+                                      n = n())
+
+SSTEM_SampleSizes_SchoolGrade
+SSTEM_SampleSizes_SchoolGender
+SSTEM_SampleSizes_SchoolRace
+SSTEM_SampleSizes_GradeGender
+SSTEM_SampleSizes_GradeRace
+SSTEM_SampleSizes_GenderRace
+
+## Self-efficacy ----
+### Manipulate Data ----
+#### Change Responses to factors ----
+## The data for each item is 
+SSTEMsurveyRQ2C <- SSTEMsurvey2 |>
+  mutate(
+    across(which(str_detect(colnames(SSTEMsurvey), pattern = "Q6|Q23|Q24")), 
+           ~ factor(.x, levels = c(1,2,3,4,5), ordered = TRUE))
+  )
+levels(SSTEMsurveyRQ2C$Q6_1)
+### Math ----
+#### Survey Response Distributions ----
+SSTEM_Math_df <- data.frame(SSTEMsurveyRQ2C |> select(str_subset(colnames(SSTEMsurvey), pattern = "Q6")))
 SSTEM_Math_labels <- SSTEMquestions[colnames(SSTEM_Math_df)]
 SSTEM_Math_labels <- str_replace(SSTEM_Math_labels, pattern = "Math - ", replacement = "")
 colnames(SSTEM_Math_df) <- SSTEM_Math_labels
 
-###### No Grouping ----
+##### No Grouping ----
 SSTEMlikertMath <- likert(SSTEM_Math_df)
 plot(SSTEMlikertMath) +
-  labs(title = "Math items")
+  labs(title = "Math items",
+       subtitle = "Ordered by positive response percentage")
 
-###### Grouping ----
-mathGrouping <- SSTEMsurvey3$School
+##### Grouping ----
+groupingColumn <- "School"
+mathGrouping <- SSTEMsurveyRQ2C |> pull(groupingColumn)
 SSTEMlikertMath <- likert(SSTEM_Math_df, grouping = mathGrouping)
 plot(SSTEMlikertMath) +
-  labs(title = "Math items")
+  labs(title = paste0("Math items parsed by ", groupingColumn),
+       subtitle = "Ordered by positive response percentage")
 
 
 
-##### Fit Multiple Linear Regression Model ----
-mlm1 <- lm(data = SSTEMsurvey2,
+#### Fit Multiple Linear Regression Model ----
+##### FREQUENTIST ----
+##### Model 1 ----
+# Full Model
+mlm1 <- lm(data = SSTEMsurveyRQ2C,
            MathScore ~ 
              School 
            + Grade 
@@ -203,18 +253,34 @@ Anova(mlm1, type = 2)
 
 mlm1_step <- step(mlm1)
 
-###### Refit with only significant terms ----
-mlm1b <- lm(data = SSTEMsurvey2,
+##### Model 1B ----
+# Refit with only significant terms
+mlm1b <- lm(data = SSTEMsurveyRQ2C,
             mlm1_step$call$formula)
 summary(mlm1b)
 Anova(mlm1b, type = 2)
 anova(mlm1b)
 
-## Diagnostic checks
-plot(mlm1b)
+###### Diagnostic checks ----
+plot(mlm1b, 1)
+
+# Normality
+shapiro.test(mlm1b$residuals)
+
+# Independence
+durbinWatsonTest(mlm1b)
+
+# Constant Variance of Residuals
+ncvTest(mlm1b)
 
 ###### Expected Marginal Means -----
 mlm1b_emms <- data.frame(emmeans(mlm1b, specs = c("School"), by = c("Grade"), level = 0.95))
+mlm1b_preds <- predict(mlm1b, 
+                       newdata = SSTEMsurveyRQ2C |> select(School, Grade, Gender, Race), 
+                       type = "response")
+SSTEMsurveyRQ2C$MathScorePredictions <- mlm1b_preds
+
+
 
 ###### Create visualization ----
 ggplot(data = mlm1b_emms) +
@@ -222,7 +288,7 @@ ggplot(data = mlm1b_emms) +
                  position = position_dodge(width = 1)) + 
   geom_point(aes(x = emmean, y = Grade, color = School),
              position = position_dodge(width = 1)) +
-  scale_x_continuous(limits = c(1,6), breaks = 1:6) +
+  #scale_x_continuous(limits = c(1,6), breaks = 1:6) +
   labs(
     title = "S-STEM Self-Efficacy Math Construct Score by School and Grade",
     subtitle = "95% Confidence Interval about Mean Math Construct Score",
@@ -230,8 +296,141 @@ ggplot(data = mlm1b_emms) +
   ) +
   theme_bw()
 
+##### Model 2 ----
+# Try removing interactions of disproportionate Sample Sizes
+mlm2 <- lm(data = SSTEMsurveyRQ2C,
+           MathScore ~ 
+             School 
+           + Grade 
+           + Gender
+           + Race 
+           + School:Grade 
+           + School:Gender 
+           #+ School:Race 
+           + Grade:Gender
+           #+ Grade:Race
+           #+ Gender:Race
+)
+summary(mlm2)
+Anova(mlm2, type = 2)
+
+mlm2_step <- step(mlm2)
+
+##### Model 2B ----
+# Refit with only significant terms
+mlm2b <- lm(data = SSTEMsurveyRQ2C,
+            mlm2_step$call$formula)
+summary(mlm2b)
+Anova(mlm2b, type = 2)
+anova(mlm2b)
+
+###### Diagnostic checks ----
+plot(mlm2b)
+
+###### Expected Marginal Means -----
+mlm2b_emms <- data.frame(emmeans(mlm2b, specs = c("School"), by = c("Grade"), level = 0.95))
+
+###### Create visualization ----
+ggplot(data = mlm2b_emms) +
+  geom_errorbarh(aes(xmin = lower.CL, xmax = upper.CL, y = Grade, color = School),
+                 position = position_dodge(width = 1)) + 
+  geom_point(aes(x = emmean, y = Grade, color = School),
+             position = position_dodge(width = 1)) +
+  #scale_x_continuous(limits = c(1,6), breaks = 1:6) +
+  labs(
+    title = "S-STEM Self-Efficacy Math Construct Score by School and Grade",
+    subtitle = "95% Confidence Interval about Mean Math Construct Score",
+    x = "Math Construct Score"
+  ) +
+  theme_bw()
+
+##### BAYESIAN ----
+##### Model 1 ----
+
+blmBFtest <- generalTestBF(data = SSTEMsurveyRQ2C,
+        MathScore ~ 
+          School 
+        + Grade 
+        + Gender
+        + Race 
+        + School:Grade 
+        + School:Gender 
+        + School:Race 
+        + Grade:Gender
+        + Grade:Race
+        + Gender:Race)
+sort(blmBFtest)
+
+# using rstanarm
+blm1 <- stan_glm(data = SSTEMsurveyRQ2C,
+                MathScore ~ 
+                  School 
+                + Grade 
+                + Gender
+                + Race 
+                + School:Grade 
+                + School:Gender 
+                #+ School:Race 
+                + Grade:Gender
+                #+ Grade:Race
+                #+ Gender:Race
+                ,
+                #prior = NULL,
+                chains = 4,
+                iter = 5000,
+                cores = 4
+)
+
+summary(blm1, digits = 3)
+
+loo(blm1)
+waic(blm1)
+
+add_criterion(blm1)
+
+print(blm1, digits = 3)
+summary(blm1)
+summary(mlm1b)
+step(blm1)
+mean(bayes_R2(blm1))
+
+# Using brms
+blm2 <- brm(data = SSTEMsurveyRQ2C,
+                 MathScore ~ 
+                   School 
+                 + Grade 
+                 + Gender
+                 + Race 
+                 + School:Grade 
+                 + School:Gender 
+                 #+ School:Race 
+                 + Grade:Gender,
+                 #+ Grade:Race
+                 #+ Gender:Race
+                 #prior = NULL,
+                 chains = 4,
+                 iter = 5000
+                 # cores = 4
+)
+summary(blm2)
+
+loo(blm2)
+waic(blm2)
 
 
+print(blm2, digits = 3)
+summary(mlm1b)
+step(blm2)
+mean(bayes_R2(blm2))
+
+
+#### Fit Beta Regression ----
+SSTEMsurveyRQ2C <- SSTEMsurveyRQ2C |>
+  mutate(
+    MathScoreScaled = (MathScore - 1)/4,
+    ScienceScoreScaled = (ScienceScore - 1)/4,
+    EngTechScoreScaled = (EngTechScore - 1)/4
+  )
 
 
 
