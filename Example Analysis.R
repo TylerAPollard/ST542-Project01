@@ -53,11 +53,16 @@ library(stringr) # Manipulate strings
 library(plyr) # Produce summary tables/data.frames
 
 ## Data Analysis
-library(survey)
-library(srvyr)
-library(surveydata)
+# library(survey)
+# library(srvyr)
+# library(surveydata)
+library(likert)
+library(lme4)
+library(car)
+library(emmeans)
 
 ## Bayesian Data Analysis
+library(DescTools)
 library(rstanarm)
 library(posterior)
 library(bayesplot)
@@ -68,24 +73,162 @@ library(tidyverse)
 
 
 # Read in data =============================================================================================
-# Using membersurvey data from surveydata package
-survey_data <- membersurvey
-survey_labels <- varlabels(survey_data)
-view(survey_labels)
+## Survey Data Question Mapping ----
+list.files("Data")
+emptySSTEM <- read_excel("Data/S-STEM+-+DeSIRE_June+6,+2024_09.13_blank.xlsx")
+SSTEMquestions <- unlist(emptySSTEM[1,])
+SSTEMquestions
+
+STEMcolnames <- colnames(emptySSTEM)
+
+## S-STEM Survey Data ----
+SSTEMsurvey_data <- read_excel("Data/Notional S-STEM Survey Data Generated.xlsx")
 
 ## Clean data ----
+##  School: West Edgecombe Middle School (WEMS), Phillips Middle School (PSM)
+##  Grade: 6th, 7th, 8th
+##  Teacher: Mr.O'Shea, Ms.Manuel, Mr.Suitter, Other
+##  Year: 2021, 2022, 2023, 2024
+##  Semester: Fall, Spring
+##  Gender: Male, Female, Other
+##  Race: American Indian/Alaska Native, Asian, Black/African American, Native Hawaiian/Other Pacific Islander
+##        White/Caucasian, Hispanic/Latino, Multracial, Other
+SSTEMsurvey <- SSTEMsurvey_data |>
+  select(
+    ResponseId,
+    Q2,
+    Q3,
+    Q21,
+    Q22,
+    str_which(STEMcolnames, pattern = "Q6"),
+    str_which(STEMcolnames, pattern = "Q23"),
+    str_which(STEMcolnames, pattern = "Q24")
+  ) |>
+  rename(
+    "School" = Q2,
+    "Grade" = Q3,
+    "Gender" = Q21,
+    "Race" = Q22
+  )
+
+### Rename columns for clarity ----
+# colnames(SSTEMsurvey) <- str_replace(colnames(SSTEMsurvey), pattern = "Q6", replacement = "Math")
+# colnames(SSTEMsurvey) <- str_replace(colnames(SSTEMsurvey), pattern = "Q23", replacement = "Science")
+# colnames(SSTEMsurvey) <- str_replace(colnames(SSTEMsurvey), pattern = "Q24", replacement = "EngTech")
+
+
+### Summarize across constructs ----
+SSTEMsurvey2 <- SSTEMsurvey |>
+  rowwise() |>
+  mutate(
+    MathScore = mean(c_across(str_subset(colnames(SSTEMsurvey), pattern = "Q6"))),
+    ScienceScore = mean(c_across(str_subset(colnames(SSTEMsurvey), pattern = "Q23"))),
+    EngTechScore = mean(c_across(str_subset(colnames(SSTEMsurvey), pattern = "Q24")))
+  ) |>
+  mutate(
+    School = factor(School, levels = c("WEMS", "PSM")),
+    Grade = factor(Grade, levels = c("6th", "7th", "8th")),
+    Gender = factor(Gender, levels = c("Male", "Female")),
+    Race = factor(Race, 
+                  levels = c("American Indian/Alaska Native",
+                             "Asian",
+                             "Black/African American",
+                             #"Native Hawaiian/Other Pacific Islander",
+                             "White/Caucasian",
+                             "Hispanic/Latino"
+                             #"Multracial",
+                             #"Other")
+                             )
+    ),
+    Race = fct_recode(Race, 
+                      "American Indian_Alaska Native" = "American Indian/Alaska Native",
+                      "Black_African American" = "Black/African American",
+                      "White_Caucasian" = "White/Caucasian",
+                      "Hispanic_Latino" = "Hispanic/Latino")
+  )
 
 # Analysis =================================================================================================
+SSTEMsurvey3 <- SSTEMsurvey2 |>
+  mutate(
+    across(which(str_detect(colnames(SSTEMsurvey), pattern = "Q")), 
+           ~ factor(.x, levels = c(1,2,3,4,5)))
+  )
 
 ## Quantitative ----
+### Summary Statistics ----
+table(SSTEMsurvey3$School)
+table(SSTEMsurvey3$Grade)
+table(SSTEMsurvey3$Gender)
+table(SSTEMsurvey3$Race)
 
-## Qualitative ----
+
+
+### Self-efficacy ----
+#### Math ----
+##### Survey Response Distributions ----
+SSTEM_Math_df <- data.frame(SSTEMsurvey3 |> select(str_subset(colnames(SSTEMsurvey), pattern = "Q6")))
+SSTEM_Math_labels <- SSTEMquestions[colnames(SSTEM_Math_df)]
+SSTEM_Math_labels <- str_replace(SSTEM_Math_labels, pattern = "Math - ", replacement = "")
+colnames(SSTEM_Math_df) <- SSTEM_Math_labels
+
+###### No Grouping ----
+SSTEMlikertMath <- likert(SSTEM_Math_df)
+plot(SSTEMlikertMath) +
+  labs(title = "Math items")
+
+###### Grouping ----
+mathGrouping <- SSTEMsurvey3$School
+SSTEMlikertMath <- likert(SSTEM_Math_df, grouping = mathGrouping)
+plot(SSTEMlikertMath) +
+  labs(title = "Math items")
 
 
 
+##### Fit Multiple Linear Regression Model ----
+mlm1 <- lm(data = SSTEMsurvey2,
+           MathScore ~ 
+             School 
+           + Grade 
+           + Gender
+           + Race 
+           + School:Grade 
+           + School:Gender 
+           + School:Race 
+           + Grade:Gender
+           #+ Grade:Race
+           #+ Gender:Race
+)
+summary(mlm1)
+Anova(mlm1, type = 2)
 
+mlm1_step <- step(mlm1)
 
+###### Refit with only significant terms ----
+mlm1b <- lm(data = SSTEMsurvey2,
+            mlm1_step$call$formula)
+summary(mlm1b)
+Anova(mlm1b, type = 2)
+anova(mlm1b)
 
+## Diagnostic checks
+plot(mlm1b)
+
+###### Expected Marginal Means -----
+mlm1b_emms <- data.frame(emmeans(mlm1b, specs = c("School"), by = c("Grade"), level = 0.95))
+
+###### Create visualization ----
+ggplot(data = mlm1b_emms) +
+  geom_errorbarh(aes(xmin = lower.CL, xmax = upper.CL, y = Grade, color = School),
+                 position = position_dodge(width = 1)) + 
+  geom_point(aes(x = emmean, y = Grade, color = School),
+             position = position_dodge(width = 1)) +
+  scale_x_continuous(limits = c(1,6), breaks = 1:6) +
+  labs(
+    title = "S-STEM Self-Efficacy Math Construct Score by School and Grade",
+    subtitle = "95% Confidence Interval about Mean Math Construct Score",
+    x = "Math Construct Score"
+  ) +
+  theme_bw()
 
 
 
