@@ -58,9 +58,11 @@ library(plyr) # Produce summary tables/data.frames
 # library(surveydata)
 library(likert)
 library(lme4)
+library(lmtest)
 library(car)
 library(emmeans)
 library(betareg)
+library(caret)
 
 ## Bayesian Data Analysis
 library(DescTools)
@@ -70,6 +72,9 @@ library(posterior)
 library(bayesplot)
 library(BayesFactor)
 library(rjags)
+
+## Plotting
+library(patchwork)
 
 ## Load this package last to reduce package conflictions with dplyr
 library(tidyverse) 
@@ -208,8 +213,8 @@ SSTEMsurveyRQ2C <- SSTEMsurvey2 |>
            ~ factor(.x, levels = c(1,2,3,4,5), ordered = TRUE))
   )
 levels(SSTEMsurveyRQ2C$Q6_1)
-### Math ----
-#### Survey Response Distributions ----
+### MATH ----
+#### Survey Distribution Barplots----
 SSTEM_Math_df <- data.frame(SSTEMsurveyRQ2C |> select(str_subset(colnames(SSTEMsurvey), pattern = "Q6")))
 SSTEM_Math_labels <- SSTEMquestions[colnames(SSTEM_Math_df)]
 SSTEM_Math_labels <- str_replace(SSTEM_Math_labels, pattern = "Math - ", replacement = "")
@@ -230,11 +235,8 @@ plot(SSTEMlikertMath) +
        subtitle = "Ordered by positive response percentage")
 
 
-
-#### Fit Multiple Linear Regression Model ----
-##### FREQUENTIST ----
-##### Model 1 ----
-# Full Model
+#### MULTIPLE LINEAR REGRESSION ----
+##### Full Model 1 -----
 mlm1 <- lm(data = SSTEMsurveyRQ2C,
            MathScore ~ 
              School 
@@ -253,7 +255,7 @@ Anova(mlm1, type = 2)
 
 mlm1_step <- step(mlm1)
 
-##### Model 1B ----
+##### Reduced Model 1 ----
 # Refit with only significant terms
 mlm1b <- lm(data = SSTEMsurveyRQ2C,
             mlm1_step$call$formula)
@@ -280,23 +282,30 @@ mlm1b_preds <- predict(mlm1b,
                        type = "response")
 SSTEMsurveyRQ2C$MathScorePredictions <- mlm1b_preds
 
-
-
-###### Create visualization ----
-ggplot(data = mlm1b_emms) +
+###### Plot Effects ----
+mlm1b_plot <- ggplot(data = mlm1b_emms) +
   geom_errorbarh(aes(xmin = lower.CL, xmax = upper.CL, y = Grade, color = School),
-                 position = position_dodge(width = 1)) + 
+                 height = 0.5, position = position_dodge(width = 0.5)) + 
   geom_point(aes(x = emmean, y = Grade, color = School),
-             position = position_dodge(width = 1)) +
-  #scale_x_continuous(limits = c(1,6), breaks = 1:6) +
+             position = position_dodge(width = 0.5)) +
+  scale_x_continuous(limits = c(1,6), breaks = 1:6) +
   labs(
-    title = "S-STEM Self-Efficacy Math Construct Score by School and Grade",
+    title = "S-STEM Self-Efficacy Math Construct Score by\nGrade and School",
     subtitle = "95% Confidence Interval about Mean Math Construct Score",
     x = "Math Construct Score"
   ) +
-  theme_bw()
+  theme_bw() +
+  theme(
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    title = element_text(size = rel(1.25)),
+    axis.title = element_text(size = rel(1.1)),
+    axis.text = element_text(size = rel(1.1)),
+    legend.text = element_text(size = rel(1))
+  )
+mlm1b_plot
 
-##### Model 2 ----
+##### Full Model 2 ----
 # Try removing interactions of disproportionate Sample Sizes
 mlm2 <- lm(data = SSTEMsurveyRQ2C,
            MathScore ~ 
@@ -316,69 +325,98 @@ Anova(mlm2, type = 2)
 
 mlm2_step <- step(mlm2)
 
-##### Model 2B ----
+##### Reduced Model 2 ----
 # Refit with only significant terms
 mlm2b <- lm(data = SSTEMsurveyRQ2C,
             mlm2_step$call$formula)
-summary(mlm2b)
+mlm2b_sum <- summary(mlm2b)
+mlm2b_sum
 Anova(mlm2b, type = 2)
 anova(mlm2b)
 
+mlm_varImp <- varImp(mlm2b, useModel = "rf") |> arrange(desc(Overall))
+mlm_varImp
+
 ###### Diagnostic checks ----
-plot(mlm2b)
+plot(mlm2b, 1)
+
+# Normality
+shapiro.test(mlm2b$residuals)
+
+# Independence
+durbinWatsonTest(mlm2b)
+
+# Constant Variance of Residuals
+ncvTest(mlm2b)
 
 ###### Expected Marginal Means -----
-mlm2b_emms <- data.frame(emmeans(mlm2b, specs = c("School"), by = c("Grade"), level = 0.95))
+mlm2b_emms <- data.frame(emmeans(mlm2b, 
+                                 specs = c("School"), 
+                                 by = c("Grade"), 
+                                 level = 0.95))
 
-###### Create visualization ----
-ggplot(data = mlm2b_emms) +
+###### Plot Effects ----
+mlm2b_plot <- ggplot(data = mlm2b_emms) +
   geom_errorbarh(aes(xmin = lower.CL, xmax = upper.CL, y = Grade, color = School),
-                 position = position_dodge(width = 1)) + 
+                 height = 0.5, position = position_dodge(width = 0.5)) + 
   geom_point(aes(x = emmean, y = Grade, color = School),
-             position = position_dodge(width = 1)) +
-  #scale_x_continuous(limits = c(1,6), breaks = 1:6) +
+             position = position_dodge(width = 0.5)) +
+  scale_x_continuous(limits = c(1,6), breaks = 1:6) +
   labs(
-    title = "S-STEM Self-Efficacy Math Construct Score by School and Grade",
+    title = "S-STEM Self-Efficacy Math Construct Score by\nGrade and School",
     subtitle = "95% Confidence Interval about Mean Math Construct Score",
     x = "Math Construct Score"
   ) +
-  theme_bw()
+  theme_bw() +
+  theme(
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    title = element_text(size = rel(1.25)),
+    axis.title = element_text(size = rel(1.1)),
+    axis.text = element_text(size = rel(1.1)),
+    legend.text = element_text(size = rel(1))
+  )
+mlm2b_plot
 
-##### BAYESIAN ----
-##### Model 1 ----
-
+#### BAYESIAN MULTIPLE LINEAR REGRESSION ----
+##### General Bayes Factor ----
 blmBFtest <- generalTestBF(data = SSTEMsurveyRQ2C,
-        MathScore ~ 
-          School 
-        + Grade 
-        + Gender
-        + Race 
-        + School:Grade 
-        + School:Gender 
-        + School:Race 
-        + Grade:Gender
-        + Grade:Race
-        + Gender:Race)
+                           MathScore ~ 
+                             School 
+                           + Grade 
+                           + Gender
+                           + Race 
+                           + School:Grade 
+                           + School:Gender 
+                           + School:Race 
+                           + Grade:Gender
+                           + Grade:Race
+                           + Gender:Race, )
+summary(blmBFtest)
 sort(blmBFtest)
+plot(blmBFtest)
 
+##### Full Model 1 ----
 # using rstanarm
+# Set seed for reproducibility
+set.seed(52)
 blm1 <- stan_glm(data = SSTEMsurveyRQ2C,
-                MathScore ~ 
-                  School 
-                + Grade 
-                + Gender
-                + Race 
-                + School:Grade 
-                + School:Gender 
-                #+ School:Race 
-                + Grade:Gender
-                #+ Grade:Race
-                #+ Gender:Race
-                ,
-                #prior = NULL,
-                chains = 4,
-                iter = 5000,
-                cores = 4
+                 MathScore ~ 
+                   School 
+                 + Grade 
+                 + Gender
+                 + Race 
+                 + School:Grade 
+                 + School:Gender 
+                 #+ School:Race 
+                 + Grade:Gender
+                 #+ Grade:Race
+                 #+ Gender:Race
+                 ,
+                 #prior = NULL,
+                 # chains = 4,
+                 # iter = 5000,
+                 # cores = 4
 )
 
 summary(blm1, digits = 3)
@@ -389,50 +427,383 @@ waic(blm1)
 add_criterion(blm1)
 
 print(blm1, digits = 3)
-summary(blm1)
-summary(mlm1b)
-step(blm1)
-mean(bayes_R2(blm1))
+summary(blm1, digits = 3)
 
+###### Diagnostic Checks ----
+pp_check(blm1, nreps = 1000)
+
+##### Full Model 2 ----
 # Using brms
 blm2 <- brm(data = SSTEMsurveyRQ2C,
-                 MathScore ~ 
-                   School 
-                 + Grade 
-                 + Gender
-                 + Race 
-                 + School:Grade 
-                 + School:Gender 
-                 #+ School:Race 
-                 + Grade:Gender,
-                 #+ Grade:Race
-                 #+ Gender:Race
-                 #prior = NULL,
-                 chains = 4,
-                 iter = 5000
-                 # cores = 4
+            MathScore ~ 
+              School 
+            + Grade 
+            + Gender
+            + Race 
+            + School:Grade 
+            + School:Gender 
+            #+ School:Race 
+            + Grade:Gender
+            #+ Grade:Race
+            #+ Gender:Race
+            ,
+            family = gaussian(),
+            seed = 52
 )
-summary(blm2)
+print(blm2, digits = 3)
 
 loo(blm2)
 waic(blm2)
 
+###### Diagnostic Checks ----
+pp_check(blm2, ndraws = 1000)
 
-print(blm2, digits = 3)
-summary(mlm1b)
-step(blm2)
-mean(bayes_R2(blm2))
-
-
-#### Fit Beta Regression ----
+#### BETA REGRESSION ----
+##### Manipulate data ----
 SSTEMsurveyRQ2C <- SSTEMsurveyRQ2C |>
   mutate(
     MathScoreScaled = (MathScore - 1)/4,
     ScienceScoreScaled = (ScienceScore - 1)/4,
     EngTechScoreScaled = (EngTechScore - 1)/4
+  ) |>
+  mutate(
+    MathScoreScaled2 = ifelse(MathScoreScaled == 0, 0.00001, 
+                              ifelse(MathScoreScaled == 1, 0.99999, MathScoreScaled)),
+    ScienceScoreScaled2 = ifelse(ScienceScoreScaled == 0, 0.00001, 
+                                 ifelse(ScienceScoreScaled == 1, 0.99999, ScienceScoreScaled)),
+    EngTechScoreScaled2 = ifelse(EngTechScoreScaled == 0, 0.00001, 
+                                 ifelse(EngTechScoreScaled == 1, 0.99999, EngTechScoreScaled))
   )
 
+##### Model 1 ----
+which(SSTEMsurveyRQ2C$MathScoreScaled %in% c(0,1))
+t <- scale(SSTEMsurveyRQ2C$MathScore, center = FALSE)
+var(t)
+mean(t)
+
+set.seed(52)
+betaM1 <- betareg(data = SSTEMsurveyRQ2C,
+                  MathScoreScaled2 ~ 
+                    School 
+                  + Grade 
+                  + Gender
+                  + Race 
+                  + School:Grade 
+                  + School:Gender 
+                  #+ School:Race 
+                  + Grade:Gender
+                  #+ Grade:Race
+                  #+ Gender:Race
+                  ,
+                  #na.action = na.omit
+)
+summary(betaM1)
+betaM1_sum <- summary(betaM1, type = "pearson", phi = NULL)
+betaM1_sum
+summary(mlm1b)
+
+###### Diagnostic Checks ----
+plot(betaM1)
+
+###### Expected Marginal Means ----
+betaM1_emms <- data.frame(emmeans(betaM1, specs = c("School"), by = c("Grade"), level = 0.95))
+betaM1_emms2 <- betaM1_emms |> 
+  select(
+    "School", 
+    "Grade",
+    "emmean",
+    "asymp.LCL",
+    "asymp.UCL"
+  ) |>
+  group_by(School, Grade) |>
+  summarize(
+    across(everything(), ~.x*4+1)
+  )
+betaM1_emms2
+
+###### Plot Effects ----
+betaM1_plot <- ggplot(data = betaM1_emms2) +
+  geom_errorbarh(aes(xmin = asymp.LCL, xmax = asymp.UCL, y = Grade, color = School),
+                 height = 0.5, position = position_dodge(width = 0.5)) + 
+  geom_point(aes(x = emmean, y = Grade, color = School),
+             position = position_dodge(width = 0.5)) +
+  scale_x_continuous(limits = c(1,6), breaks = 1:6) +
+  labs(
+    title = "S-STEM Self-Efficacy Math Construct Score by\nGrade and School",
+    subtitle = "95% Confidence Interval about Mean Math Construct Score",
+    x = "Math Construct Score"
+  ) +
+  theme_bw() +
+  theme(
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    title = element_text(size = rel(1.25)),
+    axis.title = element_text(size = rel(1.1)),
+    axis.text = element_text(size = rel(1.1)),
+    legend.text = element_text(size = rel(1))
+  )
+betaM1_plot
+mlm2b_plot
+
+#### BAYESIAN BETA REGRESSION ----
+##### Model 1 ----
+bbetaM1 <- stan_betareg(data = SSTEMsurveyRQ2C,
+                        MathScoreScaled2 ~ 
+                          School 
+                        + Grade 
+                        + Gender
+                        + Race 
+                        + School:Grade 
+                        + School:Gender 
+                        #+ School:Race 
+                        + Grade:Gender
+                        #+ Grade:Race
+                        #+ Gender:Race
+                        ,
+)
+bbetaM1_sum <- summary(bbetaM1)
+bbetaM1_sum
+fixef(bbetaM1)
+
+###### Diagnostic Checks ----
+pp_check(bbetaM1, nreps = 1000) + xlim(c(-1,2))
+bayes_R2(bbetaM1)
 
 
+###### Expected Marginal Means ----
+bbetaM1_emms <- data.frame(emmeans(bbetaM1, 
+                                   specs = c("School"), 
+                                   by = c("Grade"), 
+                                   level = 0.95,
+                                   epred = TRUE))
+bbetaM1_emms
+bbetaM1_emms2 <- bbetaM1_emms |> 
+  select(
+    "School", 
+    "Grade",
+    "emmean",
+    "lower.HPD",
+    "upper.HPD"
+  ) |>
+  group_by(School, Grade) |>
+  summarize(
+    across(everything(), ~inv_logit_scaled(.x, lb = 1, ub = 5))
+  )
+bbetaM1_emms2
+betaM1_emms2
+
+###### Plot Effects ----
+bbetaM1_plot <- ggplot(data = bbetaM1_emms2) +
+  geom_errorbarh(aes(xmin = lower.HPD, xmax = upper.HPD, y = Grade, color = School),
+                 height = 0.5, position = position_dodge(width = 0.5)) + 
+  geom_point(aes(x = emmean, y = Grade, color = School),
+             position = position_dodge(width = 0.5)) +
+  scale_x_continuous(limits = c(1,6), breaks = 1:6) +
+  labs(
+    title = "S-STEM Self-Efficacy Math Construct Score by\nGrade and School",
+    subtitle = "95% Confidence Interval about Mean Math Construct Score",
+    x = "Math Construct Score"
+  ) +
+  theme_bw() +
+  theme(
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    title = element_text(size = rel(1.25)),
+    axis.title = element_text(size = rel(1.1)),
+    axis.text = element_text(size = rel(1.1)),
+    legend.text = element_text(size = rel(1))
+  )
+bbetaM1_plot
+
+##### Model 2 ----
+bbetaM2 <- brm(data = SSTEMsurveyRQ2C,
+               MathScoreScaled2 ~ 
+                 School 
+               + Grade 
+               + Gender
+               + Race 
+               + School:Grade 
+               + School:Gender 
+               #+ School:Race 
+               + Grade:Gender
+               #+ Grade:Race
+               #+ Gender:Race
+               , 
+               family = Beta()
+)
+
+bbetaM2_sum <- summary(bbetaM2)
+bbetaM2_sum
+fixef(bbetaM2)
+
+###### Diagnostic Checks ----
+pp_check(bbetaM2, ndraws = 1000)
+bayes_R2(bbetaM2)
+
+###### Expected Marginal Means ----
+bbetaM2_emms <- data.frame(emmeans(bbetaM2, 
+                                   specs = c("School"), 
+                                   by = c("Grade"), 
+                                   level = 0.95,
+                                   #epred = TRUE
+))
+bbetaM2_emms
+bbetaM2_emms2 <- bbetaM2_emms |> 
+  select(
+    "School", 
+    "Grade",
+    "emmean",
+    "lower.HPD",
+    "upper.HPD"
+  ) |>
+  group_by(School, Grade) |>
+  summarize(
+    across(everything(), ~inv_logit_scaled(.x, lb = 1, ub = 5))
+  )
+bbetaM2_emms2
+
+###### Plot Effects ----
+bbetaM2_plot <- ggplot(data = bbetaM2_emms2) +
+  geom_errorbarh(aes(xmin = lower.HPD, xmax = upper.HPD, y = Grade, color = School),
+                 height = 0.5, position = position_dodge(width = 0.5)) + 
+  geom_point(aes(x = emmean, y = Grade, color = School),
+             position = position_dodge(width = 0.5)) +
+  scale_x_continuous(limits = c(1,6), breaks = 1:6) +
+  labs(
+    title = "S-STEM Self-Efficacy Math Construct Score by\nGrade and School",
+    subtitle = "95% Confidence Interval about Mean Math Construct Score",
+    x = "Math Construct Score"
+  ) +
+  theme_bw() +
+  theme(
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    title = element_text(size = rel(1.25)),
+    axis.title = element_text(size = rel(1.1)),
+    axis.text = element_text(size = rel(1.1)),
+    legend.text = element_text(size = rel(1))
+  )
+bbetaM2_plot
+
+bbetaM2_fitted <- data.frame(fitted(bbetaM2, scale = "response"))
+bbetaM2_residuals <- data.frame(residuals(bbetaM2))
+
+#### COMPARE MODELS ----
+##### Log Likelihood ----
+mlm2b_logLik <- logLik(mlm2b)
+blm1_logLik <- mean(apply(log_lik(blm1), MARGIN = 1, FUN = sum))
+blm2_logLik <- mean(apply(log_lik(blm2), MARGIN = 1, FUN = sum))
+betaM1_logLik <- logLik(betaM1)
+bbetaM1_logLik <- mean(apply(log_lik(bbetaM1), MARGIN = 1, FUN = sum))
+bbetaM2_logLik <- mean(apply(log_lik(bbetaM2), MARGIN = 1, FUN = sum))
+
+logLik_df <- data.frame(
+  Model = c(
+    "MLR",
+    "BLR rstanarm",
+    "BLR brms",
+    "Beta",
+    "Bayes Beta rstanarm",
+    "Bayes Beta brms"
+  ),
+  LogLik = c(
+    mlm2b_logLik,
+    blm1_logLik,
+    blm2_logLik,
+    betaM1_logLik,
+    bbetaM1_logLik,
+    bbetaM2_logLik
+  )
+)
+logLik_df |> arrange(desc(LogLik))
+
+##### Psuedo R^2 ----
+mlm2b_r2 <- mlm2b_sum$r.squared
+blm1_r2 <- mean(bayes_R2(blm1))
+blm2_r2 <- mean(bayes_R2(blm2))
+betaM1_r2 <- betaM1$pseudo.r.squared
+bbetaM1_r2 <- 1 - var(bbetaM1$residuals)/(var(bbetaM1$residuals)+ var(bbetaM1$fitted.values))
+bbetaM2_r2A <- bayes_R2(bbetaM2, robust = FALSE)
+bbetaM2_r2B <- 1 - var(bbetaM2_residuals$Estimate)/(var(bbetaM2_residuals$Estimate) + var(bbetaM2_fitted$Estimate))
+
+Rsq_df <- data.frame(
+  Model = c(
+    "MLR",
+    "BLR rstanarm",
+    "BLR brms",
+    "Beta",
+    "Bayes Beta rstanarm",
+    "Bayes Beta brms A",
+    "Bayes Beta brms B"
+  ),
+  Rsq = c(
+    mlm2b_r2,
+    blm1_r2,
+    blm2_r2,
+    betaM1_r2,
+    bbetaM1_r2,
+    bbetaM2_r2A[1],
+    bbetaM2_r2B
+  )
+)
+Rsq_df |> arrange(desc(Rsq))
+
+##### Leave one out R2 ----
+loo(blm1)
+loo(blm2)
+loo(bbetaM1)
+loo(bbetaM2)
+
+loo_compare(
+  waic(blm1), 
+  waic(blm2),
+  waic(bbetaM1),
+  waic(bbetaM2)
+  )
+
+##### Plot Effects -----
+# Multiple Linear Regression
+mlm2b_plot + 
+  labs(title = NULL, 
+       subtitle = "Multiple Linear Regression", 
+       x = NULL) +
+  annotate(geom = "text", x = 1.1, y = 3, hjust = 0, size = rel(3),
+           label = paste0("Log-likelihood = ", round(mlm2b_logLik,3), "\n",
+                          "Rsq = ", round(mlm2b_r2,3))) +
+  
+  # Beta Regression
+  betaM1_plot + 
+  labs(title = NULL, 
+       subtitle = "Beta Regression", 
+       x = NULL) +
+  annotate(geom = "text", x = 1.1, y = 3, hjust = 0, size = rel(3),
+           label = paste0("Log-likelihood = ", round(betaM1_logLik,3), "\n",
+                          "Rsq = ", round(betaM1_r2,3))) +
+  
+  # Bayesian Beta Regression with rstanarm
+  bbetaM1_plot + 
+  labs(title = NULL, 
+       subtitle = "Bayesian Beta Regression with rstanarm",
+       x = NULL) +
+  annotate(geom = "text", x = 1.1, y = 3, hjust = 0, size = rel(3),
+           label = paste0("Log-likelihood = ", round(bbetaM1_logLik,3), "\n",
+                          "Rsq = ", round(bbetaM1_r2,3))) +
+  
+  # Bayesian Beta regression with brms
+  bbetaM2_plot + 
+  labs(title = NULL,
+       subtitle = "Bayesian Beta Regression with brms") +
+  annotate(geom = "text", x = 1.1, y = 3, hjust = 0, size = rel(3),
+           label = paste0("Log-likelihood = ", round(bbetaM2_logLik,3), "\n",
+                          "Rsq = ", round(bbetaM2_r2B,3))) +
+  plot_layout(ncol = 1, 
+              guides = "collect", 
+              axes = "collect_y") +
+  plot_annotation(
+    title = "S-STEM Self-Efficacy Math Construct Score by Grade and School",
+    subtitle = "95% Confidence Interval about Mean Math Construct Score",
+    theme = theme(plot.title = element_text(hjust = 0.5, size = rel(1.5)),
+                  plot.subtitle = element_text(hjust = 0.5, size = rel(1.5)))
+  )
 
 
