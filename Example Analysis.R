@@ -90,9 +90,20 @@ SSTEMquestions
 
 STEMcolnames <- colnames(emptySSTEM)
 
+save(
+  SSTEMquestions,
+  file = "app/data/S-STEM Questions.RData"
+)
+save(
+  STEMcolnames,
+  file = "app/data/S-STEM Column Names.RData"
+)
+
 ### Survey Data ----
 SSTEMsurvey_data <- read_excel("Data/Notional S-STEM Survey Data Generated.xlsx")
-
+save(SSTEMsurvey_data, file = "app/data/S-STEM Notional Data.RData")
+load(file = "app/data/S-STEM Questions.RData")
+load(file = "app/data/S-STEM Column Names.RData")
 ## Clean data ----
 ##  School: West Edgecombe Middle School (WEMS), Phillips Middle School (PSM)
 ##  Grade: 6th, 7th, 8th
@@ -121,18 +132,18 @@ SSTEMsurvey <- SSTEMsurvey_data |>
   )
 
 ### Rename columns for clarity ----
-# colnames(SSTEMsurvey) <- str_replace(colnames(SSTEMsurvey), pattern = "Q6", replacement = "Math")
-# colnames(SSTEMsurvey) <- str_replace(colnames(SSTEMsurvey), pattern = "Q23", replacement = "Science")
-# colnames(SSTEMsurvey) <- str_replace(colnames(SSTEMsurvey), pattern = "Q24", replacement = "EngTech")
+colnames(SSTEMsurvey) <- str_replace(colnames(SSTEMsurvey), pattern = "Q6_", replacement = "Math_Q")
+colnames(SSTEMsurvey) <- str_replace(colnames(SSTEMsurvey), pattern = "Q23_", replacement = "Science_Q")
+colnames(SSTEMsurvey) <- str_replace(colnames(SSTEMsurvey), pattern = "Q24_", replacement = "EngTech_Q")
 
 
 ### Summarize across constructs ----
 SSTEMsurvey2 <- SSTEMsurvey |>
   rowwise() |>
   mutate(
-    MathScore = mean(c_across(str_subset(colnames(SSTEMsurvey), pattern = "Q6"))),
-    ScienceScore = mean(c_across(str_subset(colnames(SSTEMsurvey), pattern = "Q23"))),
-    EngTechScore = mean(c_across(str_subset(colnames(SSTEMsurvey), pattern = "Q24")))
+    MathScore = mean(c_across(str_subset(colnames(SSTEMsurvey), pattern = "Math"))),
+    ScienceScore = mean(c_across(str_subset(colnames(SSTEMsurvey), pattern = "Science"))),
+    EngTechScore = mean(c_across(str_subset(colnames(SSTEMsurvey), pattern = "EngTech")))
   ) |>
   mutate(
     School = factor(School, levels = c("WEMS", "PSM")),
