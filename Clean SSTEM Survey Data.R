@@ -261,7 +261,10 @@ SSTEMsurvey_data3 <- SSTEMsurvey_data2 |>
 SSTEMsurvey_data <- SSTEMsurvey_data3
 
 ### SAVE DATA ----
-save(SSTEMsurvey_data, file = "Data/Cleaned S-STEM Survey Data.RData")
+save(SSTEMsurvey_data,
+     SSTEMsurvey_colnames,
+     SSTEMsurvey_questions,
+     file = "Data/Cleaned S-STEM Survey Data.RData")
 
 
 
