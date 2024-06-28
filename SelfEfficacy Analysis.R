@@ -54,6 +54,7 @@ library(plyr) # Produce summary tables/data.frames
 
 ## Data Analysis
 library(likert)
+library(psych)
 library(lme4)
 library(lmtest)
 library(car)
@@ -99,6 +100,9 @@ Mathsurvey <- SSTEMsurvey_data |>
 CronbachAlpha(Mathsurvey |> select(str_which(colnames(SSTEMsurvey_data), pattern = "Math")), 
               na.rm = TRUE)
 
+alpha(Mathsurvey |> select(str_which(colnames(SSTEMsurvey_data), pattern = "Math")),
+      cumulative = TRUE)
+
 ## Calculate Aggregate Score ----
 Mathsurvey_data <- Mathsurvey |>
   rowwise() |>
@@ -143,15 +147,47 @@ Math_SampleSizes_GradeGender
 Math_SampleSizes_GradeRace
 Math_SampleSizes_GenderRace
 
+## Manipulate data ----
+Mathsurvey_data <- Mathsurvey_data |>
+  mutate(
+    MathScoreScaled = (MathScore - 1)/4
+  ) |>
+  mutate(
+    MathScoreScaled2 = ifelse(MathScoreScaled == 0, 0.00001, 
+                              ifelse(MathScoreScaled == 1, 0.99999, MathScoreScaled))
+  )
+
+Mathsurvey_data2 <- Mathsurvey_data |>
+  filter(Gender %in% c("Male", "Female")) |>
+  mutate(
+    Gender = droplevels(Gender)
+  )
+
 ## Plot Data ----
 ### Density ----
+parse_fact <- c(
+  #"School"#,
+  #"Grade"#,
+  #"Gender"#,
+  "Race2"
+)
 ggplot(data = Mathsurvey_data) +
-  geom_density(aes(x = MathScore, color = School)) +
-  theme_bw()
+  geom_histogram(aes(x = MathScore, after_stat(density), fill = !!sym(parse_fact)
+                     ),
+                 binwidth = 0.25,
+                 position = position_dodge()) +
+  geom_density(aes(x = MathScore
+  )) +
+  facet_wrap(vars(!!sym(parse_fact))) +
+  theme_bw() +
+  theme(
+    legend.position = "bottom"
+  )
 
 
 ### Survey Distribution Barplots----
-SSTEM_Math_df <- data.frame(Mathsurvey_data |> select(str_subset(colnames(Mathsurvey_data), pattern = "Math_")))
+SSTEM_Math_df <- data.frame(Mathsurvey_data |> 
+                              select(str_subset(colnames(Mathsurvey_data), pattern = "Math_")))
 SSTEM_Math_df <- SSTEM_Math_df |>
   mutate(
     across(everything(), 
@@ -169,33 +205,60 @@ plot(SSTEMlikertMath) +
        subtitle = "Ordered by positive response percentage")
 
 #### Grouping ----
-groupingColumn <- "School"
+groupingColumn <- "Race2"
 mathGrouping <- Mathsurvey_data |> pull(groupingColumn)
 SSTEMlikertMath <- likert(SSTEM_Math_df, grouping = mathGrouping)
 plot(SSTEMlikertMath) +
   labs(title = paste0("Math items parsed by ", groupingColumn),
        subtitle = "Ordered by positive response percentage")
 
+## LINEAR REGRESSION ----
+### Model 1 ----
+linM1 <- lm(data = Mathsurvey_data2,
+            MathScore ~ 
+              School 
+            + Semester
+            + Grade 
+            + Gender
+            + Race2 
+            #+ School:Grade 
+            + School:Gender 
+            #+ School:Race 
+            + Grade:Gender
+            #+ Grade:Race
+            #+ Gender:Race
+            )
+summary(linM1)
+vif(linM1, type = "predictor")
+linM1_step <- step(linM1, direction = "both")
+
+drop1(linM1, test = "Chisq")
+
+t.test(Mathsurvey_data2 |> filter(Gender == "Male") |> pull("MathScore"),
+       Mathsurvey_data2 |> filter(Gender == "Female") |> pull("MathScore"))
+
+### Model 2 ----
+linM2 <- lm(data = Mathsurvey_data2,
+            MathScore ~ 
+              School 
+            + Semester
+            + Grade 
+            #+ Gender
+            + Race2 
+            #+ School:Grade 
+            + School:Gender 
+            #+ School:Race 
+            #+ Grade:Gender
+            #+ Grade:Race
+            #+ Gender:Race
+)
+summary(linM2)
+vif(linM2)
+Anova(linM2, type = 2)
 
 ## BETA REGRESSION ----
-### Manipulate data ----
-Mathsurvey_data <- Mathsurvey_data |>
-  mutate(
-    MathScoreScaled = (MathScore - 1)/4
-  ) |>
-  mutate(
-    MathScoreScaled2 = ifelse(MathScoreScaled == 0, 0.00001, 
-                              ifelse(MathScoreScaled == 1, 0.99999, MathScoreScaled))
-  )
-
-Mathsurvey_data2 <- Mathsurvey_data |>
-  filter(Gender %in% c("Male", "Female")) |>
-  mutate(
-    Gender = droplevels(Gender)
-  )
-
-#### Frequentist ----
-##### Model 1 ----
+### Frequentist ----
+#### Model 1 ----
 set.seed(52)
 betaM1 <- betareg(data = Mathsurvey_data2,
                   MathScoreScaled2 ~ 
@@ -203,18 +266,19 @@ betaM1 <- betareg(data = Mathsurvey_data2,
                   + Grade 
                   + Gender
                   + Race2 
-                  #+ School:Grade 
-                  #+ School:Gender 
-                  #+ School:Race 
-                  #+ Grade:Gender
-                  #+ Grade:Race
-                  #+ Gender:Race
+                  + School:Grade 
+                  + School:Gender 
+                  + School:Race 
+                  + Grade:Gender
+                  + Grade:Race
+                  + Gender:Race
                   ,
                   #na.action = na.omit
 )
 betaM1_sum <- summary(betaM1, type = "pearson", phi = NULL)
 betaM1_sum
 Anova(betaM1)
+vif(betaM1)
 
 ###### Diagnostic Checks ----
 plot(betaM1)
@@ -259,8 +323,8 @@ betaM1_plot <- ggplot(data = betaM1_emms2) +
 betaM1_plot
 mlm2b_plot
 
-#### Bayesian ----
-##### Model 1 ----
+### Bayesian ----
+#### Model 1 ----
 set.seed(52)
 bbetaM1 <- stan_betareg(data = Mathsurvey_data2,
                         MathScoreScaled2 ~ 
@@ -268,10 +332,10 @@ bbetaM1 <- stan_betareg(data = Mathsurvey_data2,
                         + Grade 
                         + Gender
                         + Race2 
-                        + School:Grade 
-                        #+ School:Gender 
+                        #+ School:Grade 
+                        + School:Gender 
                         #+ School:Race 
-                        #+ Grade:Gender
+                        + Grade:Gender
                         #+ Grade:Race
                         #+ Gender:Race
                         ,
@@ -330,7 +394,7 @@ bbetaM1_plot <- ggplot(data = bbetaM1_emms2) +
   )
 bbetaM1_plot
 
-##### Model 2 ----
+#### Model 2 ----
 generalBayes <- generalTestBF(data = Mathsurvey_data2,
                               MathScoreScaled2 ~ 
                                 School 
@@ -453,3 +517,129 @@ bbetaM2_plot
 
 bbetaM2_fitted <- data.frame(fitted(bbetaM2, scale = "response"))
 bbetaM2_residuals <- data.frame(residuals(bbetaM2))
+
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# SCIENCE CONSTRUCT ====================================================================================
+## Filter Data ----
+Sciencesurvey <- SSTEMsurvey_data |>
+  select(
+    1:22,
+    str_which(colnames(SSTEMsurvey_data), pattern = "Science")
+  ) |>
+  mutate(
+    Science_Q8 = 6 - Science_Q8
+  )
+
+## Check Cronbach alpha of Science Questions
+CronbachAlpha(Sciencesurvey |> select(str_which(colnames(Sciencesurvey), pattern = "Science")), 
+              na.rm = TRUE)
+
+## Calculate Aggregate Score ----
+Sciencesurvey_data <- Sciencesurvey |>
+  rowwise() |>
+  mutate(
+    ScienceScore = mean(c_across(str_subset(colnames(Sciencesurvey), pattern = "Science")), na.rm = TRUE)
+  ) |>
+  filter(
+    complete.cases(ScienceScore)
+  )
+
+## Sample Sizes ----
+### By Each Factor ----
+table(Sciencesurvey_data$SchoolYear, Sciencesurvey_data$Semester)
+table(Sciencesurvey_data$School)
+table(Sciencesurvey_data$Grade)
+table(Sciencesurvey_data$Gender)
+table(Sciencesurvey_data$Race2)
+
+### All combinations ----
+Science_SampleSizes_All <- ddply(Sciencesurvey_data, .(School, Grade, Gender, Race2), summarize,
+                              n = n(), .drop = FALSE)
+Science_SampleSizes_All
+
+### Interactions ----
+Science_SampleSizes_SchoolGrade <- ddply(Sciencesurvey_data, .(School, Grade), summarize,
+                                      n = n())
+Science_SampleSizes_SchoolGender <- ddply(Sciencesurvey_data, .(School, Gender), summarize,
+                                       n = n())
+Science_SampleSizes_SchoolRace <- ddply(Sciencesurvey_data, .(School, Race2), summarize,
+                                     n = n())
+Science_SampleSizes_GradeGender <- ddply(Sciencesurvey_data, .(Grade, Gender), summarize,
+                                      n = n())
+Science_SampleSizes_GradeRace <- ddply(Sciencesurvey_data, .(Grade, Race2), summarize,
+                                    n = n())
+Science_SampleSizes_GenderRace <- ddply(Sciencesurvey_data, .(Gender, Race2), summarize,
+                                     n = n())
+
+Science_SampleSizes_SchoolGrade
+Science_SampleSizes_SchoolGender
+Science_SampleSizes_SchoolRace
+Science_SampleSizes_GradeGender
+Science_SampleSizes_GradeRace
+Science_SampleSizes_GenderRace
+
+## Manipulate data ----
+Sciencesurvey_data <- Sciencesurvey_data |>
+  mutate(
+    ScienceScoreScaled = (ScienceScore - 1)/4
+  ) |>
+  mutate(
+    ScienceScoreScaled2 = ifelse(ScienceScoreScaled == 0, 0.00001, 
+                              ifelse(ScienceScoreScaled == 1, 0.99999, ScienceScoreScaled))
+  )
+
+Sciencesurvey_data2 <- Sciencesurvey_data |>
+  filter(Gender %in% c("Male", "Female")) |>
+  mutate(
+    Gender = droplevels(Gender)
+  )
+
+## Plot Data ----
+### Density ----
+parse_fact <- c(
+  #"School"#,
+  #"Grade"#,
+  #"Gender"#,
+  "Race2"
+)
+ggplot(data = Sciencesurvey_data) +
+  geom_histogram(aes(x = ScienceScore, after_stat(density), fill = !!sym(parse_fact)
+  ),
+  binwidth = 0.25,
+  position = position_dodge()) +
+  geom_density(aes(x = ScienceScore
+  )) +
+  facet_wrap(vars(!!sym(parse_fact))) +
+  theme_bw() +
+  theme(
+    legend.position = "bottom"
+  )
+
+
+### Survey Distribution Barplots----
+SSTEM_Science_df <- data.frame(Sciencesurvey_data |> 
+                              select(str_subset(colnames(Sciencesurvey_data), pattern = "Science_")))
+SSTEM_Science_df <- SSTEM_Science_df |>
+  mutate(
+    across(everything(), 
+           ~ factor(.x, levels = c(1,2,3,4,5), ordered = TRUE))
+  )
+
+SSTEM_Science_labels <- str_subset(SSTEMsurvey_questions, pattern = "Science - ")
+SSTEM_Science_labels <- str_replace(SSTEM_Science_labels, pattern = "Science - ", replacement = "")
+colnames(SSTEM_Science_df) <- SSTEM_Science_labels
+
+#### No Grouping ----
+SSTEMlikertScience <- likert(SSTEM_Science_df)
+plot(SSTEMlikertScience) +
+  labs(title = "Science items",
+       subtitle = "Ordered by positive response percentage")
+
+#### Grouping ----
+groupingColumn <- "Race2"
+mathGrouping <- Sciencesurvey_data |> pull(groupingColumn)
+SSTEMlikertScience <- likert(SSTEM_Science_df, grouping = mathGrouping)
+plot(SSTEMlikertScience) +
+  labs(title = paste0("Science items parsed by ", groupingColumn),
+       subtitle = "Ordered by positive response percentage")
