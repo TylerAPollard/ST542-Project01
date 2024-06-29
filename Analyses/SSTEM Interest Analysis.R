@@ -454,6 +454,7 @@ Q12kruskRace2 <- kruskal(y = Interest$Interest_Q12,
         console = TRUE) #### SIGNIFICANT2
 
 
+
 # Plot ----
 interestAreas <- c(
   "Physics",             # Q28_1
@@ -477,9 +478,6 @@ Interest_plot_df <- Interest_plot_df |>
                                                                      "Not So Interested",
                                                                      "Interested",
                                                                      "Very Interested")))
-  ) |>
-  filter(
-    complete.cases(Interest_Q1)
   )
 
 colnames(Interest_plot_df) <- interestAreas
@@ -509,12 +507,56 @@ Qnames
 #[7] "Interest_Q4"  "Interest_Q3" "Interest_Q6"  "Interest_Q11" "Interest_Q5"  "Interest_Q1" 
 
 ## Q12 ----
-likertQ12 <- likert(Interest_plot_df |> select(Interest_Q12), 
+Interest_plot_df2 <- Interest_plot_df |>
+  filter(
+    complete.cases(Physics)
+  )
+likertQ12 <- likert(Interest_plot_df2 |> 
+                      select(Physics), 
                     grouping = Interest |> 
-                      filter(complete.cases(Interest_Q1)) |>
+                      filter(complete.cases(Interest_Q12)) |>
                       pull(Gender)
                     )
-plot(likertQ12, group.order = c("Male", "Female", "Other"))
+likertQ12_plot_Gender <- plot(likertQ12, group.order = c("Male", "Female", "Other"))+
+  #labs(title = "DeSIRE Students' Interest in Physics by Gender") +
+  theme(
+    plot.title.position = "plot",
+    axis.text = element_text(size = 10),
+    plot.title = element_text(size = 14),
+    legend.title = element_blank(),
+    legend.text = element_text(size = 10)
+  )
+
+likertQ12_GenderGroups <- Q12kruskGender$groups |>
+  mutate(Gender = factor(rownames(Q12kruskGender$groups), levels = rev(rownames(Q12kruskGender$groups))))
+likertQ12_plot_GenderGroups <- ggplot(data = likertQ12_GenderGroups) +
+  geom_text(aes(x = "", y = Gender, label = groups)) +
+  labs(
+    title = "Group"
+  ) +
+  theme_bw() +
+  theme(
+    panel.border = element_blank(),
+    axis.title = element_blank(),
+    axis.ticks = element_blank(),
+    axis.text = element_blank(),
+    panel.grid = element_blank(),
+    plot.title = element_text(hjust = 0.5)
+  )
+likertQ12_plot_GenderGroups
+
+likertQ12_plot_Gender + likertQ12_plot_GenderGroups +
+  plot_annotation(
+    title = "DeSIRE Students' Interest in Physics by Gender with Pairwise Grouping",
+    subtitle = "95% Confidence Simultaneous Multiple Comparison Grouping using Bonferroni adjustment"
+  ) +
+  plot_layout(nrow = 1,
+              widths = c(9,1),
+              guides = "collect"
+  ) &
+  theme(
+    legend.position = "bottom"
+  )
 
 ## Ordinal Regression ----
 Interest_plot_df <- Interest_plot_df |>

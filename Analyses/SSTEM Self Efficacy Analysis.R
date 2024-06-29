@@ -87,7 +87,13 @@ load("Data/Cleaned S-STEM Survey Data.RData")
 ## Filter Data ----
 Mathsurvey <- SSTEMsurvey_data |>
   select(
-    1:22,
+    Semester,
+    YearSemester,
+    School,
+    Grade,
+    Gender,
+    Race,
+    Race2,
     str_which(colnames(SSTEMsurvey_data), pattern = "Math")
   ) |>
   mutate(
@@ -97,10 +103,10 @@ Mathsurvey <- SSTEMsurvey_data |>
   )
 
 ## Check Cronbach alpha of Math Questions
-CronbachAlpha(Mathsurvey |> select(str_which(colnames(SSTEMsurvey_data), pattern = "Math")), 
+CronbachAlpha(Mathsurvey |> select(str_which(colnames(Mathsurvey), pattern = "Math")), 
               na.rm = TRUE)
 
-alpha(Mathsurvey |> select(str_which(colnames(SSTEMsurvey_data), pattern = "Math")),
+alpha(Mathsurvey |> select(str_which(colnames(Mathsurvey), pattern = "Math")),
       cumulative = TRUE)
 
 ## Calculate Aggregate Score ----
@@ -112,6 +118,8 @@ Mathsurvey_data <- Mathsurvey |>
   filter(
     complete.cases(MathScore)
   )
+hist((Mathsurvey_data$MathScore))
+plot(density(Mathsurvey_data$MathScore))
 
 ## Sample Sizes ----
 ### By Each Factor ----
@@ -538,7 +546,13 @@ bbetaM2_residuals <- data.frame(residuals(bbetaM2))
 ## Filter Data ----
 Sciencesurvey <- SSTEMsurvey_data |>
   select(
-    1:22,
+    Semester,
+    YearSemester,
+    School,
+    Grade,
+    Gender,
+    Race,
+    Race2,
     str_which(colnames(SSTEMsurvey_data), pattern = "Science")
   ) |>
   mutate(
@@ -558,6 +572,8 @@ Sciencesurvey_data <- Sciencesurvey |>
   filter(
     complete.cases(ScienceScore)
   )
+hist((Sciencesurvey_data$ScienceScore))
+plot(density(Sciencesurvey_data$ScienceScore))
 
 ## Sample Sizes ----
 ### By Each Factor ----
@@ -657,3 +673,37 @@ SSTEMlikertScience <- likert(SSTEM_Science_df, grouping = mathGrouping)
 plot(SSTEMlikertScience) +
   labs(title = paste0("Science items parsed by ", groupingColumn),
        subtitle = "Ordered by positive response percentage")
+
+
+
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# SCIENCE CONSTRUCT ====================================================================================
+## Filter Data ----
+EngTechsurvey <- SSTEMsurvey_data |>
+  select(
+    Semester,
+    YearSemester,
+    School,
+    Grade,
+    Gender,
+    Race,
+    Race2,
+    str_which(colnames(SSTEMsurvey_data), pattern = "EngTech")
+  ) 
+
+## Check Cronbach alpha of EngTech Questions
+CronbachAlpha(EngTechsurvey |> select(str_which(colnames(EngTechsurvey), pattern = "EngTech")), 
+              na.rm = TRUE)
+
+## Calculate Aggregate Score ----
+EngTechsurvey_data <- EngTechsurvey |>
+  rowwise() |>
+  mutate(
+    EngTechScore = mean(c_across(str_subset(colnames(EngTechsurvey), pattern = "EngTech")), na.rm = TRUE)
+  ) |>
+  filter(
+    complete.cases(EngTechScore)
+  )
+hist((EngTechsurvey_data$EngTechScore))
+plot(density(EngTechsurvey_data$EngTechScore))
