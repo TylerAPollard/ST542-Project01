@@ -122,22 +122,22 @@ table(Mathsurvey_data$Gender)
 table(Mathsurvey_data$Race2)
 
 ### All combinations ----
-Math_SampleSizes_All <- ddply(Mathsurvey_data, .(School, Grade, Gender, Race2), summarize,
+Math_SampleSizes_All <- ddply(Mathsurvey_data, .(School, Grade, Gender, Race2), summarise, .drop = FALSE,
                               n = n())
 Math_SampleSizes_All
 
 ### Interactions ----
-Math_SampleSizes_SchoolGrade <- ddply(Mathsurvey_data, .(School, Grade), summarize,
+Math_SampleSizes_SchoolGrade <- ddply(Mathsurvey_data, .(School, Grade), summarise, .drop = FALSE,
                                       n = n())
-Math_SampleSizes_SchoolGender <- ddply(Mathsurvey_data, .(School, Gender), summarize,
+Math_SampleSizes_SchoolGender <- ddply(Mathsurvey_data, .(School, Gender), summarise, .drop = FALSE,
                                        n = n())
-Math_SampleSizes_SchoolRace <- ddply(Mathsurvey_data, .(School, Race2), summarize,
+Math_SampleSizes_SchoolRace <- ddply(Mathsurvey_data, .(School, Race2), summarise, .drop = FALSE,
                                      n = n())
-Math_SampleSizes_GradeGender <- ddply(Mathsurvey_data, .(Grade, Gender), summarize,
+Math_SampleSizes_GradeGender <- ddply(Mathsurvey_data, .(Grade, Gender), summarise, .drop = FALSE,
                                       n = n())
-Math_SampleSizes_GradeRace <- ddply(Mathsurvey_data, .(Grade, Race2), summarize,
+Math_SampleSizes_GradeRace <- ddply(Mathsurvey_data, .(Grade, Race2), summarise, .drop = FALSE,
                                     n = n())
-Math_SampleSizes_GenderRace <- ddply(Mathsurvey_data, .(Gender, Race2), summarize,
+Math_SampleSizes_GenderRace <- ddply(Mathsurvey_data, .(Gender, Race2), summarise, .drop = FALSE,
                                      n = n())
 
 Math_SampleSizes_SchoolGrade
@@ -223,38 +223,51 @@ linM1 <- lm(data = Mathsurvey_data2,
             + Race2 
             #+ School:Grade 
             + School:Gender 
-            #+ School:Race 
+            + School:Race2 
             + Grade:Gender
-            #+ Grade:Race
-            #+ Gender:Race
+            #+ Grade:Race2
+            #+ Gender:Race2
             )
 summary(linM1)
 vif(linM1, type = "predictor")
 linM1_step <- step(linM1, direction = "both")
-
 drop1(linM1, test = "Chisq")
+Anova(linM1, type = 2, test = "Chisq")
+anova(linM1)
 
-t.test(Mathsurvey_data2 |> filter(Gender == "Male") |> pull("MathScore"),
-       Mathsurvey_data2 |> filter(Gender == "Female") |> pull("MathScore"))
+plot(linM1)
+shapiro.test(linM1$residuals)
+DurbinWatsonTest(linM1)
+ncvTest(linM1)
 
 ### Model 2 ----
 linM2 <- lm(data = Mathsurvey_data2,
             MathScore ~ 
-              School 
+              #School 
             + Semester
-            + Grade 
-            #+ Gender
-            + Race2 
+            #+ Grade 
+            + Gender
+            #+ Race2 
             #+ School:Grade 
-            + School:Gender 
-            #+ School:Race 
+            #+ School:Gender 
+            #+ School:Race2 
             #+ Grade:Gender
-            #+ Grade:Race
-            #+ Gender:Race
+            #+ Grade:Race2
+            #+ Gender:Race2
 )
 summary(linM2)
-vif(linM2)
-Anova(linM2, type = 2)
+vif(linM2, type = "predictor")
+vif(linM2, type = "terms")
+Anova(linM2, type = 2, test.statistic = "F", error.estimate = "dispersion")
+linM2_step <- step(linM2, direction = "both")
+anova(linM2)
+
+plot(linM2)
+shapiro.test(linM2$residuals)
+DurbinWatsonTest(linM2)
+ncvTest(linM2)
+
+emmeans(linM2, specs = "Semester", by = "Gender")
 
 ## BETA REGRESSION ----
 ### Frequentist ----
@@ -397,7 +410,8 @@ bbetaM1_plot
 #### Model 2 ----
 generalBayes <- generalTestBF(data = Mathsurvey_data2,
                               MathScoreScaled2 ~ 
-                                School 
+                                Semester
+                              + School 
                               + Grade 
                               + Gender
                               + Race2 
@@ -405,8 +419,8 @@ generalBayes <- generalTestBF(data = Mathsurvey_data2,
                               + School:Gender 
                               + School:Race2 
                               + Grade:Gender
-                              + Grade:Race
-                              + Gender:Race
+                              + Grade:Race2
+                              + Gender:Race2
                               )
 sort(generalBayes)
 

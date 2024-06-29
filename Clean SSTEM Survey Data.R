@@ -198,7 +198,8 @@ SSTEMsurvey_data2 <- SSTEMsurvey_data |>
     Semester = ifelse(semester(Date) == 1, "Spring", "Fall"),
     SchoolYear = ifelse(Semester == "Fall", 
                         paste0(Year, "-", Year+1),
-                        paste0(Year-1, "-", Year))
+                        paste0(Year-1, "-", Year)),
+    YearSemester = paste0(Year, Semester)
   ) |>
   select(
     StartDate,
@@ -206,6 +207,7 @@ SSTEMsurvey_data2 <- SSTEMsurvey_data |>
     Year,
     SchoolYear,
     Semester,
+    YearSemester,
     everything()
   )
 
@@ -253,7 +255,7 @@ SSTEMsurvey_data3 <- SSTEMsurvey_data2 |>
                               "Other")) 
   ) |>
   select(
-    1:20,
+    1:21,
     Race2,
     everything()
   )
@@ -267,6 +269,14 @@ save(SSTEMsurvey_data,
      file = "Data/Cleaned S-STEM Survey Data.RData")
 
 
-
-
+## Sample Sizes of Data before Filtering ----
+table(SSTEMsurvey_data$Semester)
+table(SSTEMsurvey_data$SchoolYear)
+table(SSTEMsurvey_data$SchoolYear, SSTEMsurvey_data$Semester)
+table(SSTEMsurvey_data$School)
+table(SSTEMsurvey_data$Grade)
+table(SSTEMsurvey_data$School, SSTEMsurvey_data$Grade)
+table(SSTEMsurvey_data$Gender)
+table(SSTEMsurvey_data$Race)
+table(SSTEMsurvey_data$Race2)
 
