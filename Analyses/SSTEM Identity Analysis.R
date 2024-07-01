@@ -286,6 +286,13 @@ boxcox_model <- lm(LearningScore ~ 1, data = Learningsurvey_df)
 boxcoxLearningScore <- boxCox(boxcox_model)
 boxcoxLearningScore_lambda <- boxcoxLearningScore$x[which.max(boxcoxLearningScore$y)]
 
+ddply(Learningsurvey_df, .(School, Gender), summarise,
+      mean(LearningScore))
+ddply(Learningsurvey_df, .(School), summarise,
+      mean(LearningScore))
+ddply(Learningsurvey_df, .(Gender), summarise,
+      mean(LearningScore))
+
 #### Normal ----
 ##### General Tests ----
 generalBF1 <- generalTestBF(LearningScore ~ . + .^2, 
@@ -296,67 +303,117 @@ topgenM1[1] / topgenM1[5]
 topgenM1
 
 generalBF2 <- anovaBF(LearningScore ~ 
-                              YearSemester
-                            + School
-                            + Grade
-                            + Gender
-                            + Race2
-                            + School:Grade
-                            + School:Gender
-                            + School:Race2
-                            + Grade:Gender
-                            + Grade:Race2
-                            + Gender:Race2,
-                            whichRandom = "YearSemester",
-                            data = Learningsurvey_df)
+                        YearSemester
+                      + School
+                      + Grade
+                      + Gender
+                      + Race2
+                      + School:Grade
+                      + School:Gender
+                      + School:Race2
+                      + Grade:Gender
+                      + Grade:Race2
+                      + Gender:Race2,
+                      whichRandom = "YearSemester",
+                      data = Learningsurvey_df)
 generalBF2
 topgenM2 <- head(generalBF2)
 topgenM2[1] / topgenM2[2]
 
 ##### Model 1 ----
+stanlinM1 <- stan_glm(LearningScore ~ School + Gender,
+                      data = Learningsurvey_df,
+                      prior_intercept = normal(0,10, autoscale = FALSE), 
+                      prior = normal(0,10,autoscale = FALSE),
+                      prior_aux = exponential()
+                      sparse = FALSE
+)
+
+prior_summary(stanlinM1)
+posterior_summary(stanlinM1)
+
+print(stanlinM1, digits = 3)
+summary(stanlinM1, digits = 3)
+
+fixef(stanlinM1)
+mcmc_areas(stanlinM1)
+
 # No Random Effect for Semester Year
-linM1 <- brm(bf(LearningScore ~  School + Gender),
-             data = Learningsurvey_df3,
+linM1prior_coef <- prior("normal(0,10)", class = "b")
+linM1prior_Int <- prior(normal(0,10))
+linM1prior_sd <- prior("gamma(0.1, 0.1)", class = "sigma")
+
+linM1priors <- c(linM1prior_coef, linM1prior_sd)
+linM1 <- brm(bf(LearningScore ~ School + Gender,
+                center = FALSE),
+             data = Learningsurvey_df,
              family = gaussian(link = "identity"),
+             prior = linM1priors,
              save_pars = save_pars(all = TRUE),
-             iter = 2000,
+             iter = 2000, 
              seed = 52)
-print(linM1, digits = 3)
-summary(linM1, digits = 3)
+prior_summary(linM1)
+posterior_summary(linM1)
 
 prior_summary(linM1)
 posterior_summary(linM1)
 
-linM1_matrix <- as.matrix(linM1)
-linM1_draws <- as_draws_rvars(linM1)
-mcmc_areas(linM1, regex_pars = "b_[2:4]", prob = 0.95)
-loo(linM1)
-
-GenderConds <- data.frame(Gender = levels(Learningsurvey_df$Gender))
-condSchool <- conditional_effects(linM1, effects = "School")
-                                  #conditions = GenderConds)
-condSchool_df <- condSchool$School
-
-SchoolConds <- data.frame(School = levels(Learningsurvey_df$School))
-condGender <- conditional_effects(linM1, effects = "Gender")
-                                  #conditions = SchoolConds)
-condGender_df <- condGender$Gender
 
 ##### Model 2 ----
 # Random Effect for Semester Year
-linM2 <- brm(LearningScore ~ School + Gender + (1|YearSemester),
+linM2prior_coef <- prior("normal(0,10)", class = "b")
+linM2prior_Int <- prior("normal(3,2)", class = "b", coef = "Intercept")
+linM2prior_sd <- prior("cauchy(0,10)", class = "sd")
+linM2prior_sigma <- prior("cauchy(0,10)", class = "sigma")
+
+linM2priors <- c(
+  linM2prior_coef, 
+  #linM2prior_Int,
+  linM2prior_sd,
+  linM2prior_sigma
+)
+
+linM2 <- brm(bf(LearningScore ~ School + Gender + (1|YearSemester),
+                center = FALSE
+                ),
              data = Learningsurvey_df,
-             family = gaussian(),
-             warmup = 5000,
-             iter = 20000,
+             family = gaussian(link = "identity"),
+             prior = linM2priors,
              save_pars = save_pars(all = TRUE),
+             iter = 4000, 
+             control = list(adapt_delta = 0.99),
              seed = 52)
+prior_summary(linM2)
+posterior_summary(linM2)
 
 plot(linM2)
 print(linM2, digits = 3)
 summary(linM2, digits = 3)
 
-mcmc_areas(linM2, regex_pars = "b_", prob = 0.95)
+bayes_factor(linM2, linM1)
+coef(linM2)
+mcmc_areas(linM2, prob = 0.95,
+           pars = c(variables(linM2)[1:4])
+)
+
+
+linM2stanA <- stan_lmer(bf(LearningScore ~ School + Gender + (1|YearSemester),
+                           center = FALSE),
+                        data = Learningsurvey_df,
+                        prior = normal(0,5, autoscale = FALSE),
+                        prior_intercept = normal(3, 2, autoscale = FALSE),
+                        iter = 2000, 
+                        seed = 52)
+prior_summary(linM2stan)
+posterior_summary(linM2stan)
+
+summary(linM2stan, digits = 3)
+
+t <- coef(linM2stan)
+
+mcmc_areas(linM2stan, prob = 0.95,
+           pars = rownames(posterior_summary(linM2stan))[1:4])
+
 loo(linM2)
 
 pp_check(linM1, ndraws = 100)
@@ -364,18 +421,29 @@ pp_check(linM2, ndraws = 100)
 
 waic(linM1)
 waic(linM2)
-stancode(linM2)
 
 
 #### Bayesplot PPCs ----
 Y <- Learningsurvey_df$LearningScore
-Yrep <- posterior_predict(linM1)
+Yrep <- posterior_predict(linM2)
+
+ppcL2 <- apply(Yrep, 1, function(x) quantile(x, 0.025))
+ppcU2 <- apply(Yrep, 1, function(x) quantile(x, 0.975))
+ppcMedian2 <- apply(Yrep, 1, median)
+ppcMean2 <- apply(Yrep, 1, mean)
+ppcSD2 <- apply(Yrep, 1, sd)
+
+DppcL2 <- quantile(Y, 0.025)
+DppcU2 <- quantile(Y, 0.975)
+DppcMedian2 <- median(Y)
+DppcMean2 <-mean(Y)
+DppcSD2 <- sd(Y)
 
 
 ##### Overall Density ----
 ppc_density_plot <- 
-  ppc_dens_overlay(Y, Yrep) +
-  labs(title = "Posterior Predictive Checks of Beta Regression on Training Data",
+  ppc_dens_overlay(Y, Yrep[sample(1:8000, 1000, replace = FALSE), ]) +
+  labs(title = "Posterior Predictive Checks of Linear Regression on Training Data",
        subtitle = "Simulated Data Sets Compared to Training Data") +
   theme_bw() +
   legend_none() +
@@ -393,6 +461,7 @@ ppc_q2.5_plot2 <-
   labs(title = "2.5% Quantile") +
   theme_bw() +
   legend_none()
+ppc_q2.5_plot2
 
 ppcL2dens <- density(ppcL2)
 ppcL2dens <- cbind(ppcL2dens$x, ppcL2dens$y)
@@ -405,10 +474,10 @@ ppc_q2.5_plot2B <- ggplot() +
   geom_density(aes(x = ppcL2), color = "#99c7c7", linewidth = .75) +
   #geom_vline(aes(xintercept = quantile(ppcL2, 0.975)), color = "#007C7C", linewidth = 2) +
   geom_vline(aes(xintercept = DppcL2), color = "#007C7C", linewidth = 1) +
-  geom_text(aes(label = paste0("p-value = ", round(mean(ppcL2 > DppcL2), 3))),
-            x = 0.84*max(ppcL2), y = max(ppcL2dens[,2]), size = 3) +
+  # geom_text(aes(label = paste0("p-value = ", round(mean(ppcL2 > DppcL2), 3))),
+  #           x = 0.84*max(ppcL2), y = max(ppcL2dens[,2]), size = 3) +
   scale_y_continuous(expand = expansion(mult = c(0,0.05))) +
-  labs(title = "2.5% Quantile",
+  labs(title = paste0("2.5% Quantile", "  (p-value = ", round(mean(ppcL2 > DppcL2), 3), ")"),
        x = NULL,
        y = "Posterior Density") +
   theme_bw() +
@@ -434,10 +503,10 @@ ppc_q97.5_plot2B <- ggplot() +
   geom_density(aes(x = ppcU2), color = "#99c7c7", linewidth = .75) +
   #geom_vline(aes(xintercept = quantile(ppcU2, 0.975)), color = "#007C7C", linewidth = 2) +
   geom_vline(aes(xintercept = DppcU2), color = "#007C7C", linewidth = 1) +
-  geom_text(aes(label = paste0("p-value = ", round(mean(ppcU2 > DppcU2),3))),
-            x = 0.82*max(ppcU2), y = max(ppcU2dens[,2]), size = 3) +
+  # geom_text(aes(label = paste0("p-value = ", round(mean(ppcU2 > DppcU2),3))),
+  #           x = 0.82*max(ppcU2), y = max(ppcU2dens[,2]), size = 3) +
   scale_y_continuous(expand = expansion(mult = c(0,0.05))) +
-  labs(title = "97.5% Quantile",
+  labs(title = paste0("97.5% Quantile", "  (p-value = ", round(mean(ppcU2 > DppcU2), 3), ")"),
        x = NULL,
        y = "Posterior Density") +
   theme_bw() +
@@ -463,10 +532,10 @@ ppc_median_plot2B <- ggplot() +
   geom_density(aes(x = ppcMedian2), color = "#99c7c7", linewidth = .75) +
   #geom_vline(aes(xintercept = quantile(ppcMedian2, 0.975)), color = "#007C7C", linewidth = 2) +
   geom_vline(aes(xintercept = DppcMedian2), color = "#007C7C", linewidth = 1) +
-  geom_text(aes(label = paste0("p-value = ", round(mean(ppcMedian2 > DppcMedian2),3))),
-            x = 0.72*max(ppcMedian2), y = max(ppcMedian2dens[,2]), size = 3) +
+  # geom_text(aes(label = paste0("p-value = ", round(mean(ppcMedian2 > DppcMedian2),3))),
+  #           x = 0.72*max(ppcMedian2), y = max(ppcMedian2dens[,2]), size = 3) +
   scale_y_continuous(expand = expansion(mult = c(0,0.05))) +
-  labs(title = "Median",
+  labs(title = paste0("Median", "  (p-value = ", round(mean(ppcMedian2 > DppcMedian2),3), ")"),
        x = NULL,
        y = "Posterior Density") +
   theme_bw() +
@@ -492,10 +561,10 @@ ppc_mean_plot2B <- ggplot() +
   geom_density(aes(x = ppcMean2), color = "#99c7c7", linewidth = .75) +
   #geom_vline(aes(xintercept = quantile(ppcMean2, 0.975)), color = "#007C7C", linewidth = 2) +
   geom_vline(aes(xintercept = DppcMean2), color = "#007C7C", linewidth = 1) +
-  geom_text(aes(label = paste0("p-value = ", round(mean(ppcMean2 > DppcMean2),3))),
-            x = 0.96*max(ppcMean2), y = max(ppcMean2dens[,2]), size = 3) +
+  # geom_text(aes(label = paste0("p-value = ", round(mean(ppcMean2 > DppcMean2),3))),
+  #           x = 0.96*max(ppcMean2), y = max(ppcMean2dens[,2]), size = 3) +
   scale_y_continuous(expand = expansion(mult = c(0,0.05))) +
-  labs(title = "Mean",
+  labs(title = paste0("Mean", "  (p-value = ", round(mean(ppcMedian2 > DppcMedian2),3), ")"),
        x = NULL,
        y = "Posterior Density") +
   theme_bw() +
@@ -522,10 +591,10 @@ ppc_sd_plot2B <- ggplot() +
   #geom_vline(aes(xintercept = quantile(ppcSD2, 0.975)), color = "#007C7C", linewidth = 2) +
   geom_vline(aes(xintercept = DppcSD2, linetype = "B"), color = "#99c7c7", alpha = 0, linewidth = 0.75) +
   geom_vline(aes(xintercept = DppcSD2, linetype = "C"), color = "#007C7C", linewidth = 1) +
-  geom_text(aes(label = paste0("p-value = ", round(mean(ppcSD2 > DppcSD2),3))),
-            x = 0.965*max(ppcSD2), y = max(ppcSD2dens[,2]), size = 3) +
+  # geom_text(aes(label = paste0("p-value = ", round(mean(ppcSD2 > DppcSD2),3))),
+  #           x = 0.965*max(ppcSD2), y = max(ppcSD2dens[,2]), size = 3) +
   scale_y_continuous(expand = expansion(mult = c(0,0.05))) +
-  labs(title = "Standard Deviation",
+  labs(title = paste0("Standard Deviation", "  (p-value = ", round(mean(ppcSD2 > DppcSD2),3), ")"),
        x = NULL,
        y = "Posterior Density") +
   scale_linetype_manual(
@@ -556,7 +625,7 @@ ppc_lay2 <- rbind(c(NA,NA, rep(1,8),NA, NA),
 
 ppcComb_plot <- bayesplot_grid(
   plots = list(
-    ppc_density_plot2,
+    ppc_density_plot,
     ppc_q2.5_plot2B,
     ppc_median_plot2B,
     ppc_q97.5_plot2B,
@@ -566,4 +635,4 @@ ppcComb_plot <- bayesplot_grid(
     layout_matrix = ppc_lay2
   )
 )
-
+ppcComb_plot
