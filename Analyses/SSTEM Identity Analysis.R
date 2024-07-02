@@ -397,17 +397,18 @@ mcmc_areas(linM2, prob = 0.95,
 )
 
 
-linM2stanA <- stan_lmer(bf(LearningScore ~ School + Gender + (1|YearSemester),
-                           center = FALSE),
+linM2stanA <- stan_lmer(bf(LearningScore ~ . + (1|YearSemester),
+                           center = FALSE
+                           ),
                         data = Learningsurvey_df,
                         prior = normal(0,5, autoscale = FALSE),
-                        prior_intercept = normal(3, 2, autoscale = FALSE),
+                        prior_intercept = normal(3, 2, autoscale = TRUE),
                         iter = 2000, 
                         seed = 52)
 prior_summary(linM2stan)
 posterior_summary(linM2stan)
 
-summary(linM2stan, digits = 3)
+summary(linM2stanA, digits = 3)
 
 t <- coef(linM2stan)
 
@@ -426,6 +427,7 @@ waic(linM2)
 #### Bayesplot PPCs ----
 Y <- Learningsurvey_df$LearningScore
 Yrep <- posterior_predict(linM2)
+Yrep2 <- posterior_predict(linM2stanA)
 
 ppcL2 <- apply(Yrep, 1, function(x) quantile(x, 0.025))
 ppcU2 <- apply(Yrep, 1, function(x) quantile(x, 0.975))
@@ -445,12 +447,27 @@ ppc_density_plot <-
   ppc_dens_overlay(Y, Yrep[sample(1:8000, 1000, replace = FALSE), ]) +
   labs(title = "Posterior Predictive Checks of Linear Regression on Training Data",
        subtitle = "Simulated Data Sets Compared to Training Data") +
+  scale_x_continuous(limits = c(1,7), breaks = 1:7) +
+  scale_y_continuous(limits = c(0,1), breaks = seq(0,1,0.1)) +
   theme_bw() +
   legend_none() +
   theme(
     plot.title = element_text(hjust = 0.5, face = "bold", size = rel(1.5)),
     plot.subtitle = element_text(size = rel(1)))
 ppc_density_plot
+
+ppc_density_plot2 <- 
+  ppc_dens_overlay(Y, Yrep2[sample(1:4000, 1000, replace = FALSE), ]) +
+  labs(title = "Posterior Predictive Checks of Linear Regression on Training Data",
+       subtitle = "Simulated Data Sets Compared to Training Data") +
+  scale_x_continuous(limits = c(1,7), breaks = 1:7) +
+  scale_y_continuous(limits = c(0,1), breaks = seq(0,1,0.1)) +
+  theme_bw() +
+  legend_none() +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = rel(1.5)),
+    plot.subtitle = element_text(size = rel(1)))
+ppc_density_plot2
 
 ### Residuals
 ppc_hist_errors_plot <- ppc_error_hist_grouped(Y, Yrep)
