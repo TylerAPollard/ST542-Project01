@@ -82,9 +82,26 @@ discKnow_aov <- lmer(EOG ~ Student + (1|School),
                      data = discKnow_data)
 discKnow_aov <- lm(EOG ~ Student + School,
                    data = discKnow_data)
+discKnow_aov <- aov(EOG ~ Student + School,
+                    data = discKnow_data)
+discKnow_aov
 summary(discKnow_aov)
-Anova(discKnow_aov, type = 3)
-anova(discKnow_aov)
+Anova(discKnow_aov, type = 2)
+coef(discKnow_aov)
+
+t.test(discKnow_data |> 
+         filter(School == "West Edgecombe Middle School") |>
+         pull(EOG),
+       discKnow_data |> 
+         filter(School == "Phillips Middle School") |>
+         pull(EOG), var.equal = TRUE)
+
+ddply(discKnow_data, .(School, Student), summarise,
+      mean(EOG))
+ddply(discKnow_data, .(School), summarise,
+      mean(EOG))
+ddply(discKnow_data, .(Student), summarise,
+      mean(EOG))
 
 plot(discKnow_aov, 1)
 shapiro.test(discKnow_aov$residuals)
