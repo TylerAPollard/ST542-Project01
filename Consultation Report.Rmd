@@ -1,0 +1,427 @@
+---
+title: "DeSIRE Consultation Report"
+author: "Tyler Pollard"
+date: "2024-07-02"
+header-includes:
+  - \usepackage{float}
+  - \usepackage{indentfirst}
+  - \usepackage{caption}
+  - \usepackage{array}
+  - \floatplacement{figure}{H}
+  - \usepackage{amsmath}
+  - \usepackage{makecell}
+geometry: "left=1in,right=1in,top=1in,bottom=1in"
+fontsize: 12pt
+linestretch: 1.0
+indent: true
+output: 
+  pdf_document:
+    number_sections: true
+---
+
+```{r setup, echo = FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE)
+knitr::opts_chunk$set(tidy.opts=list(width.cutoff=60), tidy = TRUE)
+```
+
+```{r load libraries}
+# Load Libraries ----
+## Data Reading 
+library(data.table) # Read csv in tibble format
+library(readxl) # Read xlsx 
+
+## Data Manipulation
+library(stringr) # Manipulate strings
+library(plyr) # Produce summary tables/data.frames
+
+## Data Analysis
+library(likert)
+library(psych)
+library(agricolae)
+library(lme4)
+library(lmtest)
+library(car)
+library(emmeans)
+library(betareg)
+library(caret)
+
+## Bayesian Data Analysis
+library(DescTools)
+library(rstanarm)
+library(brms)
+library(posterior)
+library(bayesplot)
+library(BayesFactor)
+
+## Plotting
+library(patchwork)
+
+## Load this package last to reduce package conflictions with dplyr
+library(tidyverse) 
+```
+
+# Abstract {-}
+
+
+# Introduction
+## Purpose
+Engaging middle school students in rural North Carolina in STEM education presents a critical challenge. These students often face unique barriers, including limited access to resources, fewer educational opportunities, and less exposure to STEM based careers. This gap in engagement and access can suppress curiosity, limit career aspirations, and hinder the development of crucial skills needed in an advancing technological world. To overcome these challenges, innovative educational programs specifically designed to their needs are necessary. These programs aim to spark interest and provide practical learning experiences that enhance both cognitive outcomes like STEM knowledge and practices, and non-cognitive outcomes such as STEM interest, identity, and self-efficacy.
+
+DeSIRE is a partnership between the College of Engineering and the Friday Institute for Educational Innovation at North Carolina State University (NCSU), the NC Mathematics and Science Education Network Pre-College Program (MSEN), the Edgecombe County Public Schools (ECPS) district, and local advanced manufacturing industry. The Friday Institute (FI) serves as the primary research partner for the DeSIRE project.
+
+## Program design
+The aim of the DeSIRE project is to create community-based engineering design experiences for underserved middle school students (grades 6-8) from rural NC aimed to improve their cognitive (STEM content knowledge and career awareness) and non-cognitive (interest, self-efficacy and STEM identity) outcomes, and ultimately lead to their increased participation in STEM fields, particularly engineering.
+
+The DeSIRE program involves middle school students from West Edgecombe and Phillips through mentoring and instructional activities centered around the engineering design process, specifically aligned with careers in the region's advanced manufacturing industries. By engaging students in project-based learning in school and providing enrichment activities during weekends and summer breaks, the initiative seeks to expand their understanding of STEM career paths, emphasizing opportunities in advanced manufacturing within their local communities.
+
+DeSIRE will accomplish the overarching project goal by: 1) developing a 3-part Engineering Design elective course for grade levels 6-8, 2) incorporating a mentoring component whereby undergraduate engineering students from the Minority Engineering Program (MEP) at NC State and STEM professionals from industry serve as mentors to the middle school students during the course and 3) providing In-depth STEM Experiences where students engage in supplemental STEM enrichment activities outside of the classroom such as industry and university tours.
+
+## Research Questions
+1. How and to what degree does the engineering design-focused program impact students’ disciplinary- based knowledge and practices in STEM and career awareness?
+
+2. How and to what degree does the engineering design-focused program impact students’ STEM interest, STEM identity, and STEM self-efficacy?
+
+3. How and to what degree does the engineering design-focused program impact teacher STEM content and pedagogical knowledge and awareness of STEM 
+
+# Methods
+```{r Load Data}
+load("Data/Cleaned S-STEM Survey Data.RData")
+```
+
+\begin{table}[H]
+\begin{center}
+\caption{Demographics of the middle school students in the S-STEM survey data}
+\begin{tabular}{llcc}
+\hline
+Variable & Category & Frequency & Percentage (\%) \\ \hline
+Year & 2020-2021 & 8 & 9.09 \\
+     & 2022-2023 & 80 & 90.91 \\
+Semester & Fall & 43 & 48.86 \\
+         & Spring & 45 & 51.14 \\
+School & West Edgecombe Middle School & 29 & 32.95 \\
+       & Phillips Middle School & 59 & 67.05 \\
+Grade & 6th & 54 & 61.36 \\
+      & 7th & 19 & 21.59 \\
+      & 8th & 15 & 17.05 \\
+Gender & Male & 41 & 46.59 \\
+       & Female & 40 & 45.45 \\
+       & Other & 5 & 5.68 \\
+Race & Black/African American & 48 & 54.55 \\
+     & Hispanic/Latino & 13 & 14.77 \\
+     & White/Caucasion & 14 & 15.91 \\
+     & Other & 10 & 11.36 \\
+Total & & 88 & 100 \\ \hline
+\end{tabular}
+\end{center}
+\end{table}
+
+## Analysis of Variance
+
+$$
+\begin{aligned}
+Y_{ijk} &= \mu + \alpha_i + \beta_j + E_{ijk} \text{ where } E_{ijk} \overset{iid}\sim N(0, \sigma^2) \\
+i &= 1,2 = a, \text{ for factor School}\\
+j &= 1,2 = b, \text{ for factor Student} \\
+k &= 1, ..., n_{ij} \text{ for \# students per group} \\
+\end{aligned}
+$$
+
+\begin{table}[H]
+\begin{center}
+\caption{ANOVA Table}
+\begin{tabular}{c|cccc}
+Source & Sum Sq & Df & F value & Pr(>F)  \\ \hline
+Student & 1559.8 & 1 & 28.414 & 2.53e-07 \\
+School & 8658.2 & 1 & 157.735 & < 2.2e-16 \\
+Residuals & 11472.2 & 209
+\end{tabular}
+\end{center}
+\end{table}
+
+## Logistical Regression Modeling
+
+$$
+\begin{aligned}
+E(Y_i|\textbf{X}_i) &= P(Y_i = 1) = \pi_i \\
+\text{logit}(\pi_i) &= \text{log}\left( \frac{\pi_i}{1-\pi_i} \right) = \beta_0 + \sum_{j=1}^p X_{ij}\beta_j \\
+i &= 1, ..., n \text{ for particular student} \\
+j &= 1, ..., p \text{ for p parameters}
+\end{aligned}
+$$
+
+## Non-parametric tests of group distributions
+
+
+## Bayesian regression modeling
+
+# Results
+## Impact on disciplinary-based knowledge through EOG science test
+
+
+## STEM students' career awareness
+
+
+## Students' STEM interest
+
+
+## Students' STEM identity
+
+
+## Students' STEM self-efficacy
+
+
+# Conclusion
+
+# Appendix A: R Code to clean S-STEM data {-}
+```{r Clean S-STEM Data R code, echo = TRUE, eval = FALSE}
+# Load Libraries ----
+## Data Reading 
+library(data.table) # Read csv in tibble format
+library(readxl) # Read xlsx 
+
+## Data Manipulation
+library(stringr) # Manipulate strings
+library(plyr) # Produce summary tables/data.frames
+
+## Data Analysis
+library(likert)
+library(lme4)
+library(lmtest)
+library(car)
+library(emmeans)
+library(betareg)
+library(caret)
+
+## Bayesian Data Analysis
+library(DescTools)
+library(rstanarm)
+library(brms)
+library(posterior)
+library(bayesplot)
+library(BayesFactor)
+
+## Plotting
+library(patchwork)
+
+## Load this package last to reduce package conflictions with dplyr
+library(tidyverse) 
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# S-STEM SURVEY ===========================================================
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+## Read in Data ----
+
+### Questions ----
+SSTEMsurvey_questions <- read_excel(
+  "Data/S-STEM+-+DeSIRE_June+6,+2024_09.13.xlsx", 
+  n_max = 1)
+SSTEMsurvey_questions <- SSTEMsurvey_questions |> unlist()
+view(SSTEMsurvey_questions)
+SSTEMsurvey_colnames <- names(SSTEMsurvey_questions)
+
+### Survey Data ----
+SSTEMsurvey_data_withQuestions <- read_excel(
+  "Data/S-STEM+-+DeSIRE_June+6,+2024_09.13.xlsx",
+  na = c("", NA), 
+  skip = 1)
+SSTEMsurvey_data_withCodes <- SSTEMsurvey_data_withQuestions
+colnames(SSTEMsurvey_data_withCodes) <- SSTEMsurvey_colnames
+
+## Clean Data ----
+
+### Select and Rename ----
+SSTEMsurvey_data <- SSTEMsurvey_data_withCodes |>
+  select(
+    StartDate,
+    Progress,
+    Finished,
+    str_which(SSTEMsurvey_colnames, pattern = "Q")
+  ) |>
+#### Socio-Demographics ----
+rename(
+  "StartDate" = StartDate,
+  "School" = Q2,
+  "Grade" = Q3,
+  "TeacherID" = Q37,
+  "TeacherName" = Q37_4_TEXT,
+  "SemesterYear" = Q36,
+  "FirstName" = Q15,
+  "MiddleName" = Q16,
+  "LastName" = Q17,
+  "BirthDate" = Q18,
+  "StudentID" = Q20,
+  "Gender" = Q21,
+  "GenderOther" = Q21_6_TEXT,
+  "Race" = Q22,
+  "RaceOther" = Q22_8_TEXT
+)
+
+#### Self-Efficacy ----
+
+## Math, Science, and Engineering and Tech Constructs
+colnames(SSTEMsurvey_data) <- str_replace(colnames(SSTEMsurvey_data), 
+                                          pattern = "Q6_", 
+                                          replacement = "Math_Q")
+colnames(SSTEMsurvey_data) <- str_replace(colnames(SSTEMsurvey_data), 
+                                          pattern = "Q23_",
+                                          replacement = "Science_Q")
+colnames(SSTEMsurvey_data) <- str_replace(colnames(SSTEMsurvey_data), 
+                                          pattern = "Q24_", 
+                                          replacement = "EngTech_Q")
+
+#### Identity ----
+
+## 21st Century Learning Construct
+colnames(SSTEMsurvey_data) <- str_replace(colnames(SSTEMsurvey_data), 
+                                          pattern = "Q26_", 
+                                          replacement = "Learning_Q")
+
+#### Interest ----
+
+## Your Future Items
+interestAreas <- c(
+  "Physics",
+  "Environmental Work",
+  "Biology and Zoology",
+  "Veterinary Work",
+  "Mathematics",
+  "Medicine",
+  "Earth Science",
+  "Computer Science",
+  "Medical Science",
+  "Chemistry",
+  "Energy",
+  "Engineering"
+)
+
+colnames(SSTEMsurvey_data) <- str_replace(colnames(SSTEMsurvey_data), 
+                                          pattern = "Q28_", 
+                                          replacement = "Interest_Q")
+
+#### Career Awareness ----
+
+## More about you Items
+careerAwarenessAreas <- c(
+  "Scientists",
+  "Engineers",
+  "Mathematicians",
+  "Technologists"
+)
+
+colnames(SSTEMsurvey_data) <- str_replace(colnames(SSTEMsurvey_data), 
+                                          pattern = "Q35_", 
+                                          replacement = "Awareness_Q")
+
+#### Other Questions ----
+
+##### Expectations ----
+expectationAreas <- c(
+  "English",
+  "Math",
+  "Science"
+)
+
+colnames(SSTEMsurvey_data) <- str_replace(colnames(SSTEMsurvey_data),
+                                          pattern = "Q29_", 
+                                          replacement = "Expectations_Q")
+
+##### Take Advanced Classes ----
+advancedClassesAreas <- c(
+  "Mathematics",
+  "Science"
+)
+
+colnames(SSTEMsurvey_data) <- str_replace(colnames(SSTEMsurvey_data), 
+                                          pattern = "Q31_", 
+                                          replacement = "Classes_Q")
+
+##### College ----
+colnames(SSTEMsurvey_data) <- str_replace(colnames(SSTEMsurvey_data),
+                                          pattern = "Q32", 
+                                          replacement = "PlanCollege")
+colnames(SSTEMsurvey_data) <- str_replace(colnames(SSTEMsurvey_data),
+                                          pattern = "Q33", 
+                                          replacement = "InterestCollege")
+colnames(SSTEMsurvey_data) <- str_replace(colnames(SSTEMsurvey_data), 
+                                          pattern = "Q34", 
+                                          replacement = "FirstCollege")
+
+#### SAVE CHECKPOINT ----
+save(SSTEMsurvey_data, file = "Data/S-STEM Survey Data Renamed.RData")
+
+### Recode ----
+load(file = "Data/S-STEM Survey Data Renamed.RData")
+
+#### Date ----
+SSTEMsurvey_data2 <- SSTEMsurvey_data |>
+  mutate(
+    Date = as_date(StartDate),
+    Year = year(Date),
+    Semester = ifelse(semester(Date) == 1, "Spring", "Fall"),
+    SchoolYear = ifelse(Semester == "Fall", 
+                        paste0(Year, "-", Year+1),
+                        paste0(Year-1, "-", Year)),
+    YearSemester = paste0(Year, Semester)
+  ) |>
+  select(
+    StartDate,
+    Date,
+    Year,
+    SchoolYear,
+    Semester,
+    YearSemester,
+    everything()
+  )
+
+#### Factors of Interest ----
+SSTEMsurvey_data3 <- SSTEMsurvey_data2 |>
+  mutate(
+    School = factor(School,
+                    labels = c("West Edgecombe Middle School", 
+                               "Phillips Middle School")),
+    Grade = factor(Grade,
+                   labels = c("6th", "7th", "8th")),
+    Gender = factor(Gender,
+                    labels = c("Male", "Female", "Other")),
+    Race = factor(Race,
+                  levels = c(1,2,3,4,5,6,7,8),
+                  labels = c("American Indian_Alaska Native",
+                             "Asian",
+                             "Black_African American",
+                             "Native Hawaiian_Other Pacific Islander",
+                             "White_Caucasian",
+                             "Hispanic_Latino",
+                             "Multiracial",
+                             "Other")),
+    Race2 = factor(Race,
+                   levels = c("American Indian_Alaska Native",
+                              "Asian",
+                              "Black_African American",
+                              "Native Hawaiian_Other Pacific Islander",
+                              "White_Caucasian",
+                              "Hispanic_Latino",
+                              "Multiracial",
+                              "Other"),
+                   labels = c("Other",
+                              "Other",
+                              "Black_African American",
+                              "Other",
+                              "White_Caucasian",
+                              "Hispanic_Latino",
+                              "Other",
+                              "Other")) 
+  ) |>
+  select(
+    1:21,
+    Race2,
+    everything()
+  )
+
+SSTEMsurvey_data <- SSTEMsurvey_data3
+
+### SAVE DATA ----
+save(SSTEMsurvey_data,
+     SSTEMsurvey_colnames,
+     SSTEMsurvey_questions,
+     file = "Data/Cleaned S-STEM Survey Data.RData")
+```

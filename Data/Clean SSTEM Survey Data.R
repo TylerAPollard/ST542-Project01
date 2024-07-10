@@ -254,6 +254,9 @@ SSTEMsurvey_data3 <- SSTEMsurvey_data2 |>
                               "Other",
                               "Other")) 
   ) |>
+  mutate(
+    YearSemester = factor(YearSemester, levels = unique(YearSemester))
+  ) |>
   select(
     1:21,
     Race2,
@@ -270,13 +273,24 @@ save(SSTEMsurvey_data,
 
 
 ## Sample Sizes of Data before Filtering ----
-table(SSTEMsurvey_data$Semester)
+### Frequency ----
 table(SSTEMsurvey_data$SchoolYear)
-table(SSTEMsurvey_data$SchoolYear, SSTEMsurvey_data$Semester)
+table(SSTEMsurvey_data$Semester)
 table(SSTEMsurvey_data$School)
 table(SSTEMsurvey_data$Grade)
-table(SSTEMsurvey_data$School, SSTEMsurvey_data$Grade)
 table(SSTEMsurvey_data$Gender)
 table(SSTEMsurvey_data$Race)
 table(SSTEMsurvey_data$Race2)
+
+## Percent ----
+round(table(SSTEMsurvey_data$SchoolYear)/nrow(SSTEMsurvey_data)*100,2)
+round(table(SSTEMsurvey_data$Semester)/nrow(SSTEMsurvey_data)*100,2)
+round(table(SSTEMsurvey_data$School)/nrow(SSTEMsurvey_data)*100,2)
+round(table(SSTEMsurvey_data$Grade)/nrow(SSTEMsurvey_data)*100,2)
+round(table(SSTEMsurvey_data$Gender)/nrow(SSTEMsurvey_data)*100,2)
+round(table(SSTEMsurvey_data$Race)/nrow(SSTEMsurvey_data)*100,2)
+round(table(SSTEMsurvey_data$Race2)/nrow(SSTEMsurvey_data)*100,2)
+
+table(SSTEMsurvey_data$SchoolYear, SSTEMsurvey_data$Semester)
+table(SSTEMsurvey_data$School, SSTEMsurvey_data$Grade)
 

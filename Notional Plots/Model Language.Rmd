@@ -50,7 +50,7 @@ Residuals & 11472.2 & 209
 
 $$
 \begin{aligned}
-\(left \frac{\pi_i}{1 - \pi_i} \right) &= 1
+\left( \frac{\pi_i}{1 - \pi_i} \right) &= 1
 \end{aligned}
 $$
 

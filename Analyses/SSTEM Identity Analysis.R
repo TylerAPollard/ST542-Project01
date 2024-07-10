@@ -257,10 +257,7 @@ Learningsurvey_df <- Learningsurvey_data |>
     #Race,
     Race2,
     LearningScore
-  ) |>
-  mutate(
-    YearSemester = factor(YearSemester, levels = unique(Learningsurvey_data$YearSemester))
-  ) 
+  )
 
 Learningsurvey_df3 <- Learningsurvey_df |>
   mutate(
@@ -292,15 +289,93 @@ ddply(Learningsurvey_df, .(School), summarise,
       mean(LearningScore))
 ddply(Learningsurvey_df, .(Gender), summarise,
       mean(LearningScore))
+mean(Learningsurvey_df$LearningScore)
 
 #### Normal ----
+lm1 <- glm(LearningScore ~ 
+             YearSemester
+           + School
+           + Grade
+           + Gender
+           + Race2
+           #+ School:Grade
+           #+ School:Gender
+           #+ School:Race2
+           #+ Grade:Gender
+           #+ Grade:Race2
+           + Gender:Race2,
+           data = Learningsurvey_df)
+print(lm1)
+lm1step <- step(lm1)
+
+lm2 <- glm(LearningScore ~ 
+           #  YearSemester
+           + School
+           + Grade
+           + Gender
+           #+ Race2
+           #+ School:Grade
+           #+ School:Gender
+           #+ School:Race2
+           #+ Grade:Gender
+           #+ Grade:Race2
+           #+ Gender:Race2
+           ,
+           data = Learningsurvey_df)
+print(lm2)
+summary(lm2)
+Anova(lm2, type = 2, test.statistic = "F")
+
+plot(lm2, 1)
+shapiro.test(lm2$residuals)
+durbinWatsonTest(lm2)
+
+emmeans(lm2, specs = "School", "Grade")
+emmeans(lm2, specs = "Grade")
+emmeans(lm2, specs = "Gender")
+
+lm3 <- glm(LearningScore ~ 
+             #  YearSemester
+             + School
+           #+ Grade
+           + Gender
+           #+ Race2
+           #+ School:Grade
+           #+ School:Gender
+           #+ School:Race2
+           #+ Grade:Gender
+           #+ Grade:Race2
+           #+ Gender:Race2
+           ,
+           data = Learningsurvey_df)
+print(lm3)
+summary(lm3)
+Anova(lm3, type = 2)
+anova(lm3, lm2, test = "F")
+
+
+Learningsurvey_df <- Learningsurvey_df |>
+  mutate(Int = 1)
+
 ##### General Tests ----
-generalBF1 <- generalTestBF(LearningScore ~ . + .^2, 
-                            #whichModels = "withmain",
+generalBF1 <- generalTestBF(LearningScore ~ 
+                              YearSemester
+                            + School
+                            + Grade
+                            + Gender
+                            + Race2
+                            + Int 
+                            #+ School:Grade
+                            #+ School:Gender
+                            #+ School:Race2
+                            #+ Grade:Gender
+                            #+ Grade:Race2
+                            + Gender:Race2,
                             data = Learningsurvey_df)
 topgenM1 <- head(generalBF1)
-topgenM1[1] / topgenM1[5]
 topgenM1
+topgenM1[1] / topgenM1[4]
+
 
 generalBF2 <- anovaBF(LearningScore ~ 
                         YearSemester
@@ -308,57 +383,135 @@ generalBF2 <- anovaBF(LearningScore ~
                       + Grade
                       + Gender
                       + Race2
-                      + School:Grade
-                      + School:Gender
-                      + School:Race2
-                      + Grade:Gender
-                      + Grade:Race2
-                      + Gender:Race2,
-                      whichRandom = "YearSemester",
+                      #+ School:Grade
+                      #+ School:Gender
+                      #+ School:Race2
+                      #+ Grade:Gender
+                      #+ Grade:Race2
+                      #+ Gender:Race2
+                      ,
+                      whichModels = "withmain",
                       data = Learningsurvey_df)
 generalBF2
 topgenM2 <- head(generalBF2)
+topgenM2
 topgenM2[1] / topgenM2[2]
 
 ##### Model 1 ----
-stanlinM1 <- stan_glm(LearningScore ~ School + Gender,
+stanlinM1 <- stan_glm(LearningScore ~ School + Grade + Gender,
                       data = Learningsurvey_df,
-                      prior_intercept = normal(0,10, autoscale = FALSE), 
-                      prior = normal(0,10,autoscale = FALSE),
-                      prior_aux = exponential()
+                      #prior_intercept = normal(0,10, autoscale = FALSE), 
+                      #prior = normal(0,10,autoscale = FALSE),
+                      #prior_aux = exponential(1),
                       sparse = FALSE
 )
+print(stanlinM1, digits = 3)
+summary(stanlinM1, digits = 3)
+
+stanlinM2 <- stan_glm(LearningScore ~ School + Gender,
+                      data = Learningsurvey_df,
+                      #prior_intercept = normal(0,10, autoscale = FALSE), 
+                      #prior = normal(0,10,autoscale = FALSE),
+                      #prior_aux = exponential(1),
+                      sparse = FALSE
+)
+print(stanlinM2, digits = 3)
+summary(stanlinM2, digits = 3)
+
+loo(stanlinM1)
+loo(stanlinM2)
+
+stanaovM1 <- stan_aov(LearningScore ~ Int + School + Gender,
+                      data = Learningsurvey_df,
+                      adapt_delta = 0.99,
+                      prior = R2(0.5))
+#op <- options(contrasts = c("contr.helmert", "contr.poly"))
+print(fit_aov)
+print(stanaovM1)
+summary(stanaovM1)
+
+stanT1 <- lmBF(LearningScore ~ School + Grade + Gender,
+               data = Learningsurvey_df)
+stanT2 <- lmBF(LearningScore ~ School + Grade + Gender, # + Race2,
+               data = Learningsurvey_df)
+
+stanT2 / stanT1
 
 prior_summary(stanlinM1)
 posterior_summary(stanlinM1)
 
 print(stanlinM1, digits = 3)
-summary(stanlinM1, digits = 3)
+summary(stanlinM1, digits = 3, probs = c(0.025, 0.95))
 
 fixef(stanlinM1)
-mcmc_areas(stanlinM1)
+mcmc_areas(stanlinM1, pars = )
 
-# No Random Effect for Semester Year
+emmeans(stanlinM1, specs = "Gender", adjust = "bonferroni")
+
 linM1prior_coef <- prior("normal(0,10)", class = "b")
 linM1prior_Int <- prior(normal(0,10))
 linM1prior_sd <- prior("gamma(0.1, 0.1)", class = "sigma")
 
 linM1priors <- c(linM1prior_coef, linM1prior_sd)
-linM1 <- brm(bf(LearningScore ~ School + Gender,
-                center = FALSE),
+linM1 <- brm(bf(LearningScore ~ School + Grade + Gender),
              data = Learningsurvey_df,
              family = gaussian(link = "identity"),
-             prior = linM1priors,
+             #prior = linM1priors,
              save_pars = save_pars(all = TRUE),
              iter = 2000, 
              seed = 52)
 prior_summary(linM1)
 posterior_summary(linM1)
+summary(linM1, digits = 3, probs = c(0.025, 0.975))
 
 prior_summary(linM1)
 posterior_summary(linM1)
 
+linM1_draws <- posterior_predict(linM1)
+ppd_intervals_grouped(linM1_draws, group = Learningsurvey_df$School)
+ppd_stat_grouped(linM1_draws, group = Learningsurvey_df$School, stat = "mean")
 
+linM1vars <- variables(linM1)
+linM1vars2 <- str_replace_all(linM1vars, pattern = "b_", replacement = "")
+mca <- mcmc_areas(linM1, prob = 0.95, regex_pars = "b_", point_est = "mean")
+
+scode <- stancode(LearningScore ~ School + Grade + Gender, data = Learningsurvey_df)
+sdata <- standata(LearningScore ~ School + Grade + Gender, data = Learningsurvey_df)
+stanfit <- rstan::stan(model_code = scode, data = sdata)
+
+linM1B <- linM1
+linM1B$fit <- stanfit
+linM1B <- rename_pars(linM1B)
+plot(linM1B)
+
+t <- conditional_effects(linM1, 
+                         effects = "School", 
+                         conditions = expand.grid(
+                           Gender = c("Male", "Female", "Other"),
+                           Grade = c("6th", "7th", "8th")
+                         ))
+t$School
+mean(t$School |> filter(School == "West Edgecombe Middle School") |> pull(estimate__))
+mean(t$School |> filter(School == "Phillips Middle School") |> pull(estimate__))
+
+mean(t$School |> filter(School == "West Edgecombe Middle School") |> pull(lower__))
+mean(t$School |> filter(School == "Phillips Middle School") |> pull(lower__))
+
+mean(t$School |> filter(School == "West Edgecombe Middle School") |> pull(upper__))
+mean(t$School |> filter(School == "Phillips Middle School") |> pull(upper__))
+
+linM1_emmeans_School <- emmeans(linM1, specs = "School", "Grade")
+summary(linM1_emmeans_School)
+linM1_emmeans_Grade <- emmeans(linM1, specs = "Grade")
+summary(linM1_emmeans_Grade) 
+linM1_emmeans_Gender <- emmeans(linM1, specs = "Gender")
+summary(linM1_emmeans_Gender) 
+
+plot(linM1_emmeans_School)
+plot(linM1_emmeans_Grade)
+plot(linM1_emmeans_Gender)
+
+MCMCpack::mcmc
 ##### Model 2 ----
 # Random Effect for Semester Year
 linM2prior_coef <- prior("normal(0,10)", class = "b")
@@ -375,14 +528,14 @@ linM2priors <- c(
 
 linM2 <- brm(bf(LearningScore ~ School + Gender + (1|YearSemester),
                 center = FALSE
-                ),
-             data = Learningsurvey_df,
-             family = gaussian(link = "identity"),
-             prior = linM2priors,
-             save_pars = save_pars(all = TRUE),
-             iter = 4000, 
-             control = list(adapt_delta = 0.99),
-             seed = 52)
+),
+data = Learningsurvey_df,
+family = gaussian(link = "identity"),
+prior = linM2priors,
+save_pars = save_pars(all = TRUE),
+iter = 4000, 
+control = list(adapt_delta = 0.99),
+seed = 52)
 prior_summary(linM2)
 posterior_summary(linM2)
 
@@ -399,12 +552,12 @@ mcmc_areas(linM2, prob = 0.95,
 
 linM2stanA <- stan_lmer(bf(LearningScore ~ . + (1|YearSemester),
                            center = FALSE
-                           ),
-                        data = Learningsurvey_df,
-                        prior = normal(0,5, autoscale = FALSE),
-                        prior_intercept = normal(3, 2, autoscale = TRUE),
-                        iter = 2000, 
-                        seed = 52)
+),
+data = Learningsurvey_df,
+prior = normal(0,5, autoscale = FALSE),
+prior_intercept = normal(3, 2, autoscale = TRUE),
+iter = 2000, 
+seed = 52)
 prior_summary(linM2stan)
 posterior_summary(linM2stan)
 
@@ -426,7 +579,7 @@ waic(linM2)
 
 #### Bayesplot PPCs ----
 Y <- Learningsurvey_df$LearningScore
-Yrep <- posterior_predict(linM2)
+Yrep <- posterior_predict(linM1)
 Yrep2 <- posterior_predict(linM2stanA)
 
 ppcL2 <- apply(Yrep, 1, function(x) quantile(x, 0.025))
@@ -444,7 +597,7 @@ DppcSD2 <- sd(Y)
 
 ##### Overall Density ----
 ppc_density_plot <- 
-  ppc_dens_overlay(Y, Yrep[sample(1:8000, 1000, replace = FALSE), ]) +
+  ppc_dens_overlay(Y, Yrep[sample(1:4000, 1000, replace = FALSE), ]) +
   labs(title = "Posterior Predictive Checks of Linear Regression on Training Data",
        subtitle = "Simulated Data Sets Compared to Training Data") +
   scale_x_continuous(limits = c(1,7), breaks = 1:7) +
