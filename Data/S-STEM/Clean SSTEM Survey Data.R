@@ -185,10 +185,10 @@ colnames(SSTEMsurvey_data) <- str_replace(colnames(SSTEMsurvey_data), pattern = 
 colnames(SSTEMsurvey_data) <- str_replace(colnames(SSTEMsurvey_data), pattern = "Q34", replacement = "FirstCollege")
 
 #### SAVE CHECKPOINT ----
-save(SSTEMsurvey_data, file = "Data/S-STEM Survey Data Renamed.RData")
+# save(SSTEMsurvey_data, file = "Data/S-STEM Survey Data Renamed.RData")
 
 ### Recode ----
-load(file = "Data/S-STEM Survey Data Renamed.RData")
+# load(file = "Data/S-STEM Survey Data Renamed.RData")
 
 #### Date ----
 SSTEMsurvey_data2 <- SSTEMsurvey_data |>
@@ -269,7 +269,7 @@ SSTEMsurvey_data <- SSTEMsurvey_data3
 save(SSTEMsurvey_data,
      SSTEMsurvey_colnames,
      SSTEMsurvey_questions,
-     file = "Data/Cleaned S-STEM Survey Data.RData")
+     file = "Data/S-STEM/Cleaned S-STEM Survey Data.RData")
 
 
 ## Sample Sizes of Data before Filtering ----

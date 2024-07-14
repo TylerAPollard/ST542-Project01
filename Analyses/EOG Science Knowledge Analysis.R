@@ -1,6 +1,7 @@
 #### Notional Graphics for Consulting Report
 
 # Load Libraries ----
+## Data Reading 
 library(data.table) # Read csv in tibble format
 library(readxl) # Read xlsx 
 
@@ -11,6 +12,7 @@ library(plyr) # Produce summary tables/data.frames
 ## Data Analysis
 library(likert)
 library(psych)
+library(agricolae)
 library(lme4)
 library(lmtest)
 library(car)
@@ -32,49 +34,24 @@ library(patchwork)
 ## Load this package last to reduce package conflictions with dplyr
 library(tidyverse) 
 
-# Load S-STEM survey data ----
-load("Data/Cleaned S-STEM Survey Data.RData")
+# Read EOG Data ----
+
+
+
+
+
+
+
+
+
+
+
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
 # RESEARCH QUESTION 1 =======
 ## Diciplinary Knowledge ----
-discKnow_data <- data.frame(
-  School = c(rep("West Edgecombe Middle School", 115), 
-             rep("Phillips Middle School", 97)),
-  Student = c(rep("DeSIRE",45), 
-              rep("non DeSIRE",70),
-              rep("DeSIRE",36), 
-              rep("non DeSIRE",61)),
-  EOG = NA
-)
-
-## Score from 217-279
-set.seed(52)
-for(i in 1:nrow(discKnow_data)){
-  if(discKnow_data$School[i] == "West Edgecombe Middle School"){
-    temp <- rnorm(1, mean = 245, sd = 5)
-    if(discKnow_data$Student[i] == "DeSIRE"){
-      temp <- temp + rnorm(1, mean = 7, sd = 3)
-    }else if(discKnow_data$Student[i] == "non DeSIRE"){
-      
-    }
-  }else if(discKnow_data$School[i] == "Phillips Middle School"){
-    temp <- rnorm(1, mean = 260, sd = 10)
-    if(discKnow_data$Student[i] == "DeSIRE"){
-      temp <- temp + rnorm(1, mean = 7, sd = 3)
-    }else if(discKnow_data$Student[i] == "non DeSIRE"){
-      
-    }
-  }
-  discKnow_data$EOG[i] <- round(temp, 0) - 240
-}
-
-discKnow_data <- discKnow_data |>
-  mutate(
-    School = factor(School),
-    Student = factor(Student)
-  )
-
 ### Analyze ----
 discKnow_aov <- lm(EOG ~ School*Student,
                    data = discKnow_data)
@@ -161,15 +138,6 @@ Student_plot + School_plot +
   theme(legend.position = "bottom",
         panel.grid.major.y = element_blank()) 
 
-
-## Career Awareness =========================================
-#careerAwarenessMath
-#careerAwarenessEng
-#careerAwarenessTech
-#careerAwarenessScience 
-
-### Data ----
-careerAwaren
 
 
 
