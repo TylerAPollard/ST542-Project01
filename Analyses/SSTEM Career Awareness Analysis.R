@@ -82,7 +82,7 @@ library(tidyverse)
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 # Load SSTEM Survey Data ----
-load("Data/Cleaned S-STEM Survey Data.RData")
+load("Data/S-STEM/Cleaned S-STEM Survey Data.RData")
 
 # Filter Data ----
 CareerAwareness <- SSTEMsurvey_data |>

@@ -85,7 +85,7 @@ DeSIRE will accomplish the overarching project goal by: 1) developing a 3-part E
 
 # Methods
 ```{r Load Data}
-load("Data/Cleaned S-STEM Survey Data.RData")
+load("Data/S-STEM/Cleaned S-STEM Survey Data.RData")
 ```
 
 \begin{table}[H]

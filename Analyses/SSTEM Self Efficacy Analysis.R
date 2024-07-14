@@ -55,6 +55,7 @@ library(plyr) # Produce summary tables/data.frames
 ## Data Analysis
 library(likert)
 library(psych)
+library(agricolae)
 library(lme4)
 library(lmtest)
 library(car)
@@ -76,12 +77,15 @@ library(patchwork)
 ## Load this package last to reduce package conflictions with dplyr
 library(tidyverse) 
 
+## Load this package last to reduce package conflictions with dplyr
+library(tidyverse) 
+
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # SELF EFFICACY ANALYSIS
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 # Load SSTEM Survey Data ----
-load("Data/Cleaned S-STEM Survey Data.RData")
+load("Data/S-STEM/Cleaned S-STEM Survey Data.RData")
 
 # MATH CONSTRUCT ====================================================================================
 ## Filter Data ----
