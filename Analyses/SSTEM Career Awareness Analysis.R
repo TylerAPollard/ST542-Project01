@@ -92,6 +92,7 @@ CareerAwareness <- SSTEMsurvey_data |>
     School,
     Grade,
     Gender,
+    Gender2,
     Race,
     Race2,
     str_which(colnames(SSTEMsurvey_data), pattern = "Awareness")
@@ -100,7 +101,11 @@ CareerAwareness <- SSTEMsurvey_data |>
     Awareness_Q1Bin = ifelse(Awareness_Q1 == 1, 1, 0),
     Awareness_Q2Bin = ifelse(Awareness_Q2 == 1, 1, 0),
     Awareness_Q3Bin = ifelse(Awareness_Q3 == 1, 1, 0),
-    Awareness_Q4Bin = ifelse(Awareness_Q4 == 1, 1, 0)
+    Awareness_Q4Bin = ifelse(Awareness_Q4 == 1, 1, 0),
+    Awareness_Q1Bin2 = factor(ifelse(Awareness_Q1 == 1, "Yes", "No")),
+    Awareness_Q2Bin2 = factor(ifelse(Awareness_Q2 == 1, "Yes", "No")),
+    Awareness_Q3Bin2 = factor(ifelse(Awareness_Q3 == 1, "Yes", "No")),
+    Awareness_Q4Bin2 = factor(ifelse(Awareness_Q4 == 1, "Yes", "No"))
   )
 
 hist(CareerAwareness$Awareness_Q1)
@@ -113,6 +118,11 @@ hist(CareerAwareness$Awareness_Q2Bin)
 hist(CareerAwareness$Awareness_Q3Bin)
 hist(CareerAwareness$Awareness_Q4Bin)
 
+CareerAwarenessB <- CareerAwareness |>
+  filter(
+    complete.cases(Gender2)
+  )
+
 ## Check Cronbach alpha of all 4 Questions
 alpha(CareerAwareness |> select(str_which(colnames(CareerAwareness), pattern = "Bin")),
       cumulative = FALSE, na.rm = TRUE)
@@ -120,78 +130,170 @@ alpha(CareerAwareness |> select(str_which(colnames(CareerAwareness), pattern = "
 
 # Analyze =======================
 ## Scientist ===================
-awarenessSci_df <- CareerAwareness |>
-  filter(
-    Gender %in% c("Male", "Female")
-  ) |>
-  mutate(
-    Gender = droplevels(Gender)
-  ) |>
-  select(
-    YearSemester,
-    School,
-    Grade,
-    Gender,
-    #Race,
-    Race2,
-    Awareness_Q1Bin
-  )
-# awarenessSci_M1 <- glm(Awareness_Q1Bin ~ 
-#                          YearSemester
-#                        + School
-#                        + Grade 
-#                        + Gender
-#                        + Race2
-#                        + YearSemester:School
-#                        + YearSemester:Grade
-#                        + YearSemester:Gender
-#                        + YearSemester:Race2
-#                        + School:Grade
-#                        + School:Gender
-#                        + School:Race2
-#                        + Grade:Gender
-#                        + Grade:Race2
-#                        + Gender:Race2
-#                        ,
-#                        data = CareerAwareness,
-#                        family = binomial(link = "logit")
-# )
+# awarenessSci_df_G3 <- CareerAwareness |>
+#   # filter(
+#   #   Gender %in% c("Male", "Female")
+#   # ) |>
+#   # mutate(
+#   #   Gender = droplevels(Gender)
+#   # ) |>
+#   select(
+#     YearSemester,
+#     School,
+#     Grade,
+#     Gender,
+#     #Gender2,
+#     #Race,
+#     Race2,
+#     Awareness_Q1Bin
+#   )
+# 
+# awarenessSci_df_G2 <- CareerAwareness |>
+#   # filter(
+#   #   Gender %in% c("Male", "Female")
+#   # ) |>
+#   # mutate(
+#   #   Gender = droplevels(Gender)
+#   # ) |>
+#   select(
+#     YearSemester,
+#     School,
+#     Grade,
+#     #Gender,
+#     Gender2,
+#     #Race,
+#     Race2,
+#     Awareness_Q1Bin
+#   )
 
-awarenessSci_M1 <- glm(Awareness_Q1Bin ~ . + .^2,
-                       data = awarenessSci_df,
+### Three level gender ----
+awarenessSci_M1 <- glm(Awareness_Q1Bin2 ~
+                         School
+                       + Grade
+                       + Gender
+                       + Race2
+                       + Gender:Race2
+                       #+ (1|YearSemester)
+                       ,
+                       data = CareerAwareness,
                        family = binomial(link = "logit")
 )
+
 summary(awarenessSci_M1)
+Anova(awarenessSci_M1, test.statistic = "F")
 
 awarenessSci_M1_step <- step(awarenessSci_M1, direction = "both")
 
 awarenessSci_M2 <- glm(awarenessSci_M1_step,
-                       data = awarenessSci_df,
+                       data = CareerAwareness,
                        family = binomial(link = "logit")
 )
 summary(awarenessSci_M2)
 Anova(awarenessSci_M2, test.statistic = "Wald")
 
+#### Random YearSemester ----
+awarenessSci_M1R <- glmer(Awareness_Q1Bin2 ~
+                         School
+                       + Grade
+                       + Gender
+                       + Race2
+                       + Gender:Race2
+                       + (1|YearSemester)
+                       ,
+                       data = CareerAwareness,
+                       family = binomial(link = "logit")
+)
+
+summary(awarenessSci_M1R)
+Anova(awarenessSci_M1R, test.statistic = "Chisq")
+
+awarenessSci_M1_step <- step(awarenessSci_M1R, direction = "both")
+
+awarenessSci_M2 <- glm(awarenessSci_M1_step,
+                       data = CareerAwareness,
+                       family = binomial(link = "logit")
+)
+summary(awarenessSci_M2)
+Anova(awarenessSci_M2, test.statistic = "Wald")
+
+### Two level gender ----
+awarenessSci_M1B <- glm(Awareness_Q1Bin2 ~
+                        School
+                      + Grade
+                      + Gender2
+                      + Race2
+                      + Gender2:Race2
+                      #+ (1|YearSemester)
+                      ,
+                      data = CareerAwarenessB,
+                      family = binomial(link = "logit")
+)
+
+summary(awarenessSci_M1B)
+Anova(awarenessSci_M1B, test.statistic = "Wald")
+Anova(awarenessSci_M1B, test.statistic = "LR")
+Anova(awarenessSci_M1B, test.statistic = "F")
+vif(awarenessSci_M1B)
+
+awarenessSci_M1_stepB <- step(awarenessSci_M1B, direction = "both")
+
+awarenessSci_M2B <- glm(awarenessSci_M1_stepB,
+                       data = CareerAwarenessB,
+                       family = binomial(link = "logit")
+)
+summary(awarenessSci_M2B)
+Anova(awarenessSci_M2B, test.statistic = "Wald")
+
+#### Random YearSemester ----
+awarenessSci_M1BR <- glmer(Awareness_Q1Bin2 ~
+                          School
+                        + Grade
+                        + Gender2
+                        + Race2
+                        + Gender2:Race2
+                        + (1|YearSemester)
+                        ,
+                        data = CareerAwarenessB,
+                        family = binomial(link = "logit")
+)
+
+summary(awarenessSci_M1BR)
+Anova(awarenessSci_M1BR, test.statistic = "Chisq")
+
+anova(awarenessSci_M1B, awarenessSci_M1BR)
+
+awarenessSci_M1_stepB <- step(awarenessSci_M1B, direction = "both")
+
+awarenessSci_M2B <- glm(awarenessSci_M1_stepB,
+                        data = CareerAwarenessB,
+                        family = binomial(link = "logit")
+)
+summary(awarenessSci_M2B)
+Anova(awarenessSci_M2B, test.statistic = "Wald")
+
+awarenessSci_FinalModel <- awarenessSci_M2B
+
 ### Predict ----
-awarenessSci_M2_preds <- predict(awarenessSci_M2, type = "link")
-awarenessSci_M2_preds
+awarenessSci_preds <- predict(awarenessSci_FinalModel, type = "response")
+awarenessSci_preds
 
-awarenessSci_M2_emmeans <- emmeans(awarenessSci_M2, specs = "Gender")
-summary(awarenessSci_M2_emmeans)
+awarenessSci_emmeans <- emmeans(awarenessSci_FinalModel, specs = "Gender2")
+awarenessSci_emmeans_df <- summary(awarenessSci_emmeans, type = "response")
+colnames(awarenessSci_emmeans_df)[1] <- "Gender"
 
-awarenessSci_M2_emmeans_df <- data.frame(awarenessSci_M2_emmeans) |>
+awarenessSci_emmeans_df2 <- data.frame(awarenessSci_emmeans) |>
   select(-SE, -df) |>
   mutate(
-    across(-Gender, ~invlogit(.x))
+    across(-Gender2, ~invlogit(.x))
   )
-awarenessSci_M2_emmeans_df <- awarenessSci_M2_emmeans_df |>
-  mutate(
-    Gender = factor(Gender, levels = rev(Gender))
-  )
+# awarenessSci_emmeans_df <- awarenessSci_emmeans_df |>
+#   mutate(
+#     Gender2 = factor(Gender, levels = rev(Gender))
+#   )
 
-awarenessSci_plot <- ggplot(data = awarenessSci_M2_emmeans_df) +
+awarenessSci_plot <- ggplot(data = awarenessSci_emmeans_df) +
   geom_errorbarh(aes(xmin = asymp.LCL, xmax = asymp.UCL, y = Gender)) +
-  geom_point(aes(x = emmean, y = Gender)) +
+  geom_point(aes(x = prob, y = Gender)) +
   scale_x_continuous(limits = c(0,1), breaks = seq(0,1, 0.1)) +
   labs(
     title = "DeSIRE Students' Career Awareness of Science by Gender",
@@ -205,7 +307,223 @@ awarenessSci_plot <- ggplot(data = awarenessSci_M2_emmeans_df) +
   )
 awarenessSci_plot
 
+
+awarenessSci_plot2 <- ggplot(data = awarenessSci_emmeans_df) +
+  geom_errorbar(aes(ymin = asymp.LCL, ymax = asymp.UCL, x = Gender)) +
+  geom_point(aes(y = prob, x = Gender)) +
+  scale_y_continuous(limits = c(0,1), breaks = seq(0,1, 0.1)) +
+  labs(
+    title = "DeSIRE Students' Career Awareness of Science by Gender",
+    subtitle = "95% Confidence Interval about Point Estimate Probability of Awareness",
+    y = "Probability of Career Awareness"
+  ) +
+  theme_bw() +
+  theme(
+    panel.grid.major.x = element_blank(),
+    plot.title.position = "plot"
+  )
+awarenessSci_plot2
+
 ## Engineer ===================
+### Three level gender ----
+awarenessEng_M1 <- glm(Awareness_Q2Bin2 ~
+                         School
+                       + Grade
+                       + Gender
+                       + Race2
+                       + Gender:Race2
+                       #+ (1|YearSemester)
+                       ,
+                       data = CareerAwareness,
+                       family = binomial(link = "logit")
+)
+
+summary(awarenessEng_M1)
+Anova(awarenessEng_M1, test.statistic = "F")
+
+awarenessEng_M1_step <- step(awarenessEng_M1, direction = "both")
+
+awarenessEng_M2 <- glm(awarenessEng_M1_step,
+                       data = CareerAwareness,
+                       family = binomial(link = "logit")
+)
+summary(awarenessEng_M2)
+Anova(awarenessEng_M2, test.statistic = "Wald")
+
+#### Random YearSemester ----
+awarenessEng_M1R <- glmer(Awareness_Q2Bin2 ~
+                            School
+                          + Grade
+                          + Gender
+                          + Race2
+                          + Gender:Race2
+                          + (1|YearSemester)
+                          ,
+                          data = CareerAwareness,
+                          family = binomial(link = "logit")
+)
+
+summary(awarenessEng_M1R)
+
+awarenessEng_M1_step <- step(awarenessEng_M1R, direction = "both")
+
+awarenessEng_M2 <- glm(awarenessEng_M1_step,
+                       data = CareerAwareness,
+                       family = binomial(link = "logit")
+)
+summary(awarenessEng_M2)
+Anova(awarenessEng_M2, test.statistic = "Wald")
+
+### Two level gender ----
+awarenessEng_M1B <- glm(Awareness_Q2Bin2 ~
+                          School
+                        + Grade
+                        + Gender2
+                        + Race2
+                        + Gender2:Race2
+                        #+ (1|YearSemester)
+                        ,
+                        data = CareerAwarenessB,
+                        family = binomial(link = "logit")
+)
+
+summary(awarenessEng_M1B)
+Anova(awarenessEng_M1B, test.statistic = "Wald")
+Anova(awarenessEng_M1B, test.statistic = "LR")
+Anova(awarenessEng_M1B, test.statistic = "F")
+vif(awarenessEng_M1B)
+
+awarenessEng_M1_stepB <- step(awarenessEng_M1B, direction = "both")
+
+awarenessEng_M2B <- glm(Awareness_Q2Bin2 ~
+                            School
+                          + Grade
+                          + Gender2
+                          + Race2
+                          #+ Gender2:Race2
+                          #+ (1|YearSemester)
+                          ,
+                          data = CareerAwarenessB,
+                          family = binomial(link = "logit")
+)
+summary(awarenessEng_M2B)
+Anova(awarenessEng_M2B, test.statistic = "Wald")
+Anova(awarenessEng_M2B, test.statistic = "LR")
+Anova(awarenessEng_M2B, test.statistic = "F")
+
+awarenessEng_M2_stepB <- step(awarenessEng_M2B, direction = "both")
+
+awarenessEng_M3B <- glm(Awareness_Q2Bin2 ~
+                          School
+                        + Grade
+                        #+ Gender2
+                        #+ Race2
+                        #+ Gender2:Race2
+                        #+ (1|YearSemester)
+                        ,
+                        data = CareerAwarenessB,
+                        family = binomial(link = "logit")
+)
+summary(awarenessEng_M3B)
+Anova(awarenessEng_M3B, test.statistic = "Wald")
+Anova(awarenessEng_M3B, test.statistic = "LR")
+Anova(awarenessEng_M3B, test.statistic = "F")
+
+#### Random YearSemester ----
+awarenessEng_M1BR <- glmer(Awareness_Q1Bin2 ~ 
+                             School
+                           + Grade
+                           + Gender2
+                           + Race2
+                           + Gender2:Race2
+                           + (1|YearSemester)
+                           ,
+                           data = CareerAwarenessB,
+                           family = binomial(link = "logit")
+)
+print(awarenessEng_M1BR)
+summary(awarenessEng_M1BR)
+Anova(awarenessEng_M1BR, test.statistic = "Chisq")
+
+anova(awarenessEng_M1B, awarenessEng_M1BR)
+
+awarenessEng_M1_stepB <- step(awarenessEng_M1B, direction = "both")
+
+awarenessEng_M2B <- glm(awarenessEng_M1_stepB,
+                        data = CareerAwarenessB,
+                        family = binomial(link = "logit")
+)
+summary(awarenessEng_M2B)
+Anova(awarenessEng_M2B, test.statistic = "Wald")
+
+awarenessEng_FinalModel <- awarenessEng_M2B
+
+awarenessEng_M1BR <- stan_glmer(Awareness_Q1Bin2 ~ 
+                             School
+                           + Grade
+                           + Gender2
+                           + Race2
+                           + Gender2:Race2
+                           + (1|YearSemester)
+                           ,
+                           data = CareerAwarenessB,
+                           family = binomial(link = "logit")
+)
+
+summary(awarenessEng_M1BR, probs = c(0.025, 0.975))
+
+### Predict ----
+awarenessEng_preds <- predict(awarenessEng_FinalModel, type = "response")
+awarenessEng_preds
+
+awarenessEng_emmeans <- emmeans(awarenessEng_FinalModel, specs = "Gender2")
+awarenessEng_emmeans_df <- summary(awarenessEng_emmeans, type = "response")
+colnames(awarenessEng_emmeans_df)[1] <- "Gender"
+
+awarenessEng_emmeans_df2 <- data.frame(awarenessEng_emmeans) |>
+  select(-SE, -df) |>
+  mutate(
+    across(-Gender2, ~invlogit(.x))
+  )
+# awarenessEng_emmeans_df <- awarenessEng_emmeans_df |>
+#   mutate(
+#     Gender2 = factor(Gender, levels = rev(Gender))
+#   )
+
+awarenessEng_plot <- ggplot(data = awarenessEng_emmeans_df) +
+  geom_errorbarh(aes(xmin = asymp.LCL, xmax = asymp.UCL, y = Gender)) +
+  geom_point(aes(x = prob, y = Gender)) +
+  scale_x_continuous(limits = c(0,1), breaks = seq(0,1, 0.1)) +
+  labs(
+    title = "DeSIRE Students' Career Awareness of Science by Gender",
+    subtitle = "95% Confidence Interval about Point Estimate Probability of Awareness",
+    x = "Probability of Career Awareness"
+  ) +
+  theme_bw() +
+  theme(
+    panel.grid.major.y = element_blank(),
+    plot.title.position = "plot"
+  )
+awarenessEng_plot
+
+
+awarenessEng_plot2 <- ggplot(data = awarenessEng_emmeans_df) +
+  geom_errorbar(aes(ymin = asymp.LCL, ymax = asymp.UCL, x = Gender)) +
+  geom_point(aes(y = prob, x = Gender)) +
+  scale_y_continuous(limits = c(0,1), breaks = seq(0,1, 0.1)) +
+  labs(
+    title = "DeSIRE Students' Career Awareness of Science by Gender",
+    subtitle = "95% Confidence Interval about Point Estimate Probability of Awareness",
+    y = "Probability of Career Awareness"
+  ) +
+  theme_bw() +
+  theme(
+    panel.grid.major.x = element_blank(),
+    plot.title.position = "plot"
+  )
+awarenessEng_plot2
+
+### OLD ====
 awarenessEng_df <- CareerAwareness |>
   filter(
     Gender %in% c("Male", "Female")
@@ -312,24 +630,24 @@ awarenessMath_df <- CareerAwareness |>
     Awareness_Q3Bin
   )
 awarenessMath_M1 <- glm(Awareness_Q3Bin ~
-                              YearSemester
-                            + School
-                            + Grade
-                            + Gender
-                            + Race2
-                            #+ YearSemester:School
-                            #+ YearSemester:Grade
-                            + YearSemester:Gender
-                            #+ YearSemester:Race2
-                            #+ School:Grade
-                            + School:Gender
-                            #+ School:Race2
-                            + Grade:Gender
-                            #+ Grade:Race2
-                            #+ Gender:Race2
-                            ,
-                       data = awarenessMath_df,
-                       family = binomial(link = "logit")
+                          YearSemester
+                        + School
+                        + Grade
+                        + Gender
+                        + Race2
+                        #+ YearSemester:School
+                        #+ YearSemester:Grade
+                        + YearSemester:Gender
+                        #+ YearSemester:Race2
+                        #+ School:Grade
+                        + School:Gender
+                        #+ School:Race2
+                        + Grade:Gender
+                        #+ Grade:Race2
+                        #+ Gender:Race2
+                        ,
+                        data = awarenessMath_df,
+                        family = binomial(link = "logit")
 )
 summary(awarenessMath_M1)
 
@@ -337,14 +655,14 @@ awarenessMath_M1_step <- step(awarenessMath_M1, direction = "both")
 
 awarenessMath_M2 <- glm(Awareness_Q3Bin ~ #1
                           #YearSemester
-                        + School
+                          + School
                         #+ Grade
                         + Gender
                         #+ Race2
                         #+ School:Gender 
                         ,
-                       data = awarenessMath_df,
-                       family = binomial(link = "logit")
+                        data = awarenessMath_df,
+                        family = binomial(link = "logit")
 )
 summary(awarenessMath_M2)
 Anova(awarenessMath_M2, test.statistic = "Wald")
