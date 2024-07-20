@@ -9,7 +9,9 @@ header-includes:
   - \usepackage{array}
   - \floatplacement{figure}{H}
   - \usepackage{amsmath}
+  - \usepackage{multicol}
   - \usepackage{makecell}
+  - \usepackage{cancel}
 geometry: "left=1in,right=1in,top=1in,bottom=1in"
 fontsize: 12pt
 linestretch: 1.0
@@ -18,6 +20,18 @@ output:
   pdf_document:
     number_sections: true
 ---
+
+<!-- Font Sizes List -->
+<!-- \tiny -->
+<!-- \scriptsize -->
+<!-- \footnotesize -->
+<!-- \small -->
+<!-- \normalsize -->
+<!-- \large -->
+<!-- \Large -->
+<!-- \LARGE -->
+<!-- \huge -->
+<!-- \Huge -->
 
 ```{r setup, echo = FALSE}
 knitr::opts_chunk$set(echo = FALSE, message = FALSE)
@@ -84,35 +98,88 @@ DeSIRE will accomplish the overarching project goal by: 1) developing a 3-part E
 3. How and to what degree does the engineering design-focused program impact teacher STEM content and pedagogical knowledge and awareness of STEM 
 
 # Methods
+## Data
 ```{r Load Data}
 load("Data/S-STEM/Cleaned S-STEM Survey Data.RData")
+
+SampleSize_data_G3 <- SSTEMsurvey_data |>
+  select(
+    SchoolYear,
+    Semester,
+    YearSemester,
+    School,
+    Grade,
+    Gender,
+    Gender2,
+    Race,
+    Race2
+  )
+
+SampleSizes_G3 <- apply(SampleSize_data_G3, 2, table)
+SampleSizes_G3Perc <- lapply(SampleSizes_G3, function(x){round(x/nrow(SampleSize_data_G3)*100, 2)})
+
+
+SampleSize_data_G2 <- SampleSize_data_G3 |>
+  filter(complete.cases(Gender2))
+
+SampleSizes_G2 <- apply(SampleSize_data_G2, 2, table)
+SampleSizes_G2Perc <- lapply(SampleSizes_G2, function(x){round(x/nrow(SampleSize_data_G2)*100, 2)})
 ```
 
 \begin{table}[H]
-\begin{center}
-\caption{Demographics of the middle school students in the S-STEM survey data}
-\begin{tabular}{llcc}
-\hline
+  \begin{center}
+    \caption{Demographics of the middle school students in the S-STEM survey data}
+    \begin{tabular}{llcc}
+    \Xhline{2\arrayrulewidth}
 Variable & Category & Frequency & Percentage (\%) \\ \hline
-Year & 2020-2021 & 8 & 9.09 \\
-     & 2022-2023 & 80 & 90.91 \\
-Semester & Fall & 43 & 48.86 \\
-         & Spring & 45 & 51.14 \\
-School & West Edgecombe Middle School & 29 & 32.95 \\
-       & Phillips Middle School & 59 & 67.05 \\
-Grade & 6th & 54 & 61.36 \\
-      & 7th & 19 & 21.59 \\
-      & 8th & 15 & 17.05 \\
-Gender & Male & 41 & 46.59 \\
-       & Female & 40 & 45.45 \\
-       & Other & 5 & 5.68 \\
-Race & Black/African American & 48 & 54.55 \\
-     & Hispanic/Latino & 13 & 14.77 \\
-     & White/Caucasion & 14 & 15.91 \\
-     & Other & 10 & 11.36 \\
-Total & & 88 & 100 \\ \hline
-\end{tabular}
-\end{center}
+Year & 2020-2021 & `r SampleSizes_G3$SchoolYear[1]` & `r SampleSizes_G3Perc$SchoolYear[1]` \\
+     & 2022-2023 & `r SampleSizes_G3$SchoolYear[2]` & `r SampleSizes_G3Perc$SchoolYear[2]` \\
+Semester & Fall & `r SampleSizes_G3$Semester[1]` & `r SampleSizes_G3Perc$Semester[1]` \\
+         & Spring & `r SampleSizes_G3$Semester[2]` & `r SampleSizes_G3Perc$Semester[2]` \\
+School & `r names(SampleSizes_G3$School[1])` & `r SampleSizes_G3$School[1]` & `r SampleSizes_G3Perc$School[1]` \\
+       & `r names(SampleSizes_G3$School[2])` & `r SampleSizes_G3$School[2]` & `r SampleSizes_G3Perc$School[2]` \\
+Grade & `r names(SampleSizes_G3$Grade[1])` & `r SampleSizes_G3$Grade[1]` & `r SampleSizes_G3Perc$Grade[1]` \\
+      & `r names(SampleSizes_G3$Grade[2])` & `r SampleSizes_G3$Grade[2]` & `r SampleSizes_G3Perc$Grade[2]` \\
+      & `r names(SampleSizes_G3$Grade[3])` & `r SampleSizes_G3$Grade[3]` & `r SampleSizes_G3Perc$Grade[3]` \\
+Gender & `r names(SampleSizes_G3$Gender[1])` & `r SampleSizes_G3$Gender[1]` & `r SampleSizes_G3Perc$Gender[1]` \\
+       & `r names(SampleSizes_G3$Gender[2])` & `r SampleSizes_G3$Gender[2]` & `r SampleSizes_G3Perc$Gender[2]` \\
+       & `r names(SampleSizes_G3$Gender[3])` & `r SampleSizes_G3$Gender[3]` & `r SampleSizes_G3Perc$Gender[3]` \\
+Gender2 & `r names(SampleSizes_G3$Gender[1])` & `r SampleSizes_G3$Gender[1]` & `r SampleSizes_G3Perc$Gender[1]` \\
+       & `r names(SampleSizes_G3$Gender[2])` & `r SampleSizes_G3$Gender[2]` & `r SampleSizes_G3Perc$Gender[2]` \\
+Race & Black/African American & `r SampleSizes_G3$Race2[1]` & `r SampleSizes_G3Perc$Race2[1]` \\
+     & Hispanic/Latino & `r SampleSizes_G3$Race2[2]` & `r SampleSizes_G3Perc$Race2[2]` \\
+     & White/Caucasion & `r SampleSizes_G3$Race2[4]` & `r SampleSizes_G3Perc$Race2[4]` \\
+     & Other & `r SampleSizes_G3$Race2[3]` & `r SampleSizes_G3Perc$Race2[3]` \\ \hline
+Total & & 82 & 100 \\ \hline
+    \end{tabular}
+  \end{center}
+\end{table}
+
+
+\begin{table}[H]
+  \begin{center}
+    \caption{Demographics of the middle school students in the S-STEM survey data}
+    \begin{tabular}{llcc}
+    \Xhline{2\arrayrulewidth}
+Variable & Category & Frequency & Percentage (\%) \\ \hline
+Year & 2020-2021 & `r SampleSizes_G2$SchoolYear[1]` & `r SampleSizes_G2Perc$SchoolYear[1]` \\
+     & 2022-2023 & `r SampleSizes_G2$SchoolYear[2]` & `r SampleSizes_G2Perc$SchoolYear[2]` \\
+Semester & Fall & `r SampleSizes_G2$Semester[1]` & `r SampleSizes_G2Perc$Semester[1]` \\
+         & Spring & `r SampleSizes_G2$Semester[2]` & `r SampleSizes_G2Perc$Semester[2]` \\
+School & `r names(SampleSizes_G2$School[1])` & `r SampleSizes_G2$School[1]` & `r SampleSizes_G2Perc$School[1]` \\
+       & `r names(SampleSizes_G2$School[2])` & `r SampleSizes_G2$School[2]` & `r SampleSizes_G2Perc$School[2]` \\
+Grade & `r names(SampleSizes_G2$Grade[1])` & `r SampleSizes_G2$Grade[1]` & `r SampleSizes_G2Perc$Grade[1]` \\
+      & `r names(SampleSizes_G2$Grade[2])` & `r SampleSizes_G2$Grade[2]` & `r SampleSizes_G2Perc$Grade[2]` \\
+      & `r names(SampleSizes_G2$Grade[3])` & `r SampleSizes_G2$Grade[3]` & `r SampleSizes_G2Perc$Grade[3]` \\
+Gender2 & `r names(SampleSizes_G2$Gender[1])` & `r SampleSizes_G2$Gender[1]` & `r SampleSizes_G2Perc$Gender[1]` \\
+       & `r names(SampleSizes_G2$Gender[2])` & `r SampleSizes_G2$Gender[2]` & `r SampleSizes_G2Perc$Gender[2]` \\
+Race & Black/African American & `r SampleSizes_G2$Race2[1]` & `r SampleSizes_G2Perc$Race2[1]` \\
+     & Hispanic/Latino & `r SampleSizes_G2$Race2[2]` & `r SampleSizes_G2Perc$Race2[2]` \\
+     & White/Caucasion & `r SampleSizes_G2$Race2[4]` & `r SampleSizes_G2Perc$Race2[4]` \\
+     & Other & `r SampleSizes_G2$Race2[3]` & `r SampleSizes_G2Perc$Race2[3]` \\ \hline
+Total & & 82 & 100 \\ \hline
+    \end{tabular}
+  \end{center}
 \end{table}
 
 ## Analysis of Variance

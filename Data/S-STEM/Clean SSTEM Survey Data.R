@@ -80,14 +80,14 @@ library(tidyverse)
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 ## Read in Data ----
 ### Questions ----
-SSTEMsurvey_questions <- read_excel("Data/S-STEM+-+DeSIRE_June+6,+2024_09.13.xlsx", 
+SSTEMsurvey_questions <- read_excel("Data/S-STEM/S-STEM+-+DeSIRE_June+6,+2024_09.13.xlsx", 
                                     n_max = 1)
 SSTEMsurvey_questions <- SSTEMsurvey_questions |> unlist()
 view(SSTEMsurvey_questions)
 SSTEMsurvey_colnames <- names(SSTEMsurvey_questions)
 
 ### Survey Data ----
-SSTEMsurvey_data_withQuestions <- read_excel("Data/S-STEM+-+DeSIRE_June+6,+2024_09.13.xlsx",
+SSTEMsurvey_data_withQuestions <- read_excel("Data/S-STEM/S-STEM+-+DeSIRE_June+6,+2024_09.13.xlsx",
                                              na = c("", NA), 
                                              skip = 1)
 SSTEMsurvey_data_withCodes <- SSTEMsurvey_data_withQuestions
@@ -263,34 +263,66 @@ SSTEMsurvey_data3 <- SSTEMsurvey_data2 |>
     everything()
   )
 
-SSTEMsurvey_data <- SSTEMsurvey_data3
+#### Remove NA students ----
+SSTEMsurvey_data4 <- SSTEMsurvey_data3 |>
+  filter(
+    complete.cases(BirthDate)
+  )
 
-### SAVE DATA ----
+dups <- which(duplicated(SSTEMsurvey_data4 |> select(FirstName, LastName)))
+
+#### Remove duplicated students ----
+SSTEMsurvey_data5 <- SSTEMsurvey_data4 |>
+  slice(
+    -(dups - 1)
+  )
+
+#### Remove duplicated students ----
+SSTEMsurvey_data6 <- SSTEMsurvey_data5 |>
+  mutate(
+    Gender2 = factor(ifelse(Gender == "Other", NA, as.character(Gender)),
+                     levels = c("Male", "Female"))
+  ) |>
+  select(
+    1:19,
+    Gender2,
+    everything()
+  )
+
+
+### Sample Sizes of Data before Filtering ----
+#### Frequency ----
+table(SSTEMsurvey_data6$SchoolYear)
+table(SSTEMsurvey_data6$Semester)
+table(SSTEMsurvey_data6$School)
+table(SSTEMsurvey_data6$Grade)
+table(SSTEMsurvey_data6$Gender)
+table(SSTEMsurvey_data6$Race)
+table(SSTEMsurvey_data6$Race2)
+
+#### Percent ----
+round(table(SSTEMsurvey_data6$SchoolYear)/nrow(SSTEMsurvey_data6)*100,2)
+round(table(SSTEMsurvey_data6$Semester)/nrow(SSTEMsurvey_data6)*100,2)
+round(table(SSTEMsurvey_data6$School)/nrow(SSTEMsurvey_data6)*100,2)
+round(table(SSTEMsurvey_data6$Grade)/nrow(SSTEMsurvey_data6)*100,2)
+round(table(SSTEMsurvey_data6$Gender)/nrow(SSTEMsurvey_data6)*100,2)
+round(table(SSTEMsurvey_data6$Race)/nrow(SSTEMsurvey_data6)*100,2)
+round(table(SSTEMsurvey_data6$Race2)/nrow(SSTEMsurvey_data6)*100,2)
+
+table(SSTEMsurvey_data5$SchoolYear, SSTEMsurvey_data5$Semester)
+table(SSTEMsurvey_data5$School, SSTEMsurvey_data5$Grade)
+
+
+
+# Final data ----
+SSTEMsurvey_data <- SSTEMsurvey_data6
+
+# SAVE DATA ----
 save(SSTEMsurvey_data,
      SSTEMsurvey_colnames,
      SSTEMsurvey_questions,
      file = "Data/S-STEM/Cleaned S-STEM Survey Data.RData")
 
 
-## Sample Sizes of Data before Filtering ----
-### Frequency ----
-table(SSTEMsurvey_data$SchoolYear)
-table(SSTEMsurvey_data$Semester)
-table(SSTEMsurvey_data$School)
-table(SSTEMsurvey_data$Grade)
-table(SSTEMsurvey_data$Gender)
-table(SSTEMsurvey_data$Race)
-table(SSTEMsurvey_data$Race2)
 
-## Percent ----
-round(table(SSTEMsurvey_data$SchoolYear)/nrow(SSTEMsurvey_data)*100,2)
-round(table(SSTEMsurvey_data$Semester)/nrow(SSTEMsurvey_data)*100,2)
-round(table(SSTEMsurvey_data$School)/nrow(SSTEMsurvey_data)*100,2)
-round(table(SSTEMsurvey_data$Grade)/nrow(SSTEMsurvey_data)*100,2)
-round(table(SSTEMsurvey_data$Gender)/nrow(SSTEMsurvey_data)*100,2)
-round(table(SSTEMsurvey_data$Race)/nrow(SSTEMsurvey_data)*100,2)
-round(table(SSTEMsurvey_data$Race2)/nrow(SSTEMsurvey_data)*100,2)
-
-table(SSTEMsurvey_data$SchoolYear, SSTEMsurvey_data$Semester)
-table(SSTEMsurvey_data$School, SSTEMsurvey_data$Grade)
 
