@@ -17,8 +17,9 @@ fontsize: 12pt
 linestretch: 1.0
 indent: true
 output: 
-  pdf_document:
+  bookdown::pdf_document2:
     number_sections: true
+    fig_caption: TRUE
 ---
 
 <!-- Font Sizes List -->
@@ -48,6 +49,15 @@ library(readxl) # Read xlsx
 library(stringr) # Manipulate strings
 library(plyr) # Produce summary tables/data.frames
 
+## Plotting
+library(scales)
+library(RColorBrewer)
+library(patchwork)
+
+## Tables
+library(gt)
+library(gtsummary)
+
 ## Data Analysis
 library(likert)
 library(psych)
@@ -58,6 +68,8 @@ library(car)
 library(emmeans)
 library(betareg)
 library(caret)
+library(jtools)
+library(blorr)
 
 ## Bayesian Data Analysis
 library(DescTools)
@@ -66,9 +78,6 @@ library(brms)
 library(posterior)
 library(bayesplot)
 library(BayesFactor)
-
-## Plotting
-library(patchwork)
 
 ## Load this package last to reduce package conflictions with dplyr
 library(tidyverse) 
@@ -101,8 +110,11 @@ DeSIRE will accomplish the overarching project goal by: 1) developing a 3-part E
 ## Data
 ```{r Load Data}
 load("Data/S-STEM/Cleaned S-STEM Survey Data.RData")
+load("Analyses/STEM Career Awareness/AllCareerAwareness.RData")
+```
 
-SampleSize_data_G3 <- SSTEMsurvey_data |>
+```{r Sample Sizes}
+SampleSize_data <- SSTEMsurvey_data |>
   select(
     SchoolYear,
     Semester,
@@ -115,69 +127,44 @@ SampleSize_data_G3 <- SSTEMsurvey_data |>
     Race2
   )
 
-SampleSizes_G3 <- apply(SampleSize_data_G3, 2, table)
-SampleSizes_G3Perc <- lapply(SampleSizes_G3, function(x){round(x/nrow(SampleSize_data_G3)*100, 2)})
-
-
-SampleSize_data_G2 <- SampleSize_data_G3 |>
-  filter(complete.cases(Gender2))
-
-SampleSizes_G2 <- apply(SampleSize_data_G2, 2, table)
-SampleSizes_G2Perc <- lapply(SampleSizes_G2, function(x){round(x/nrow(SampleSize_data_G2)*100, 2)})
+SampleSizes <- apply(SampleSize_data, 2, table)
+SampleSizesPerc <- lapply(SampleSizes, function(x){round(x/nrow(SampleSize_data)*100, 2)})
 ```
 
 \begin{table}[H]
   \begin{center}
     \caption{Demographics of the middle school students in the S-STEM survey data}
     \begin{tabular}{llcc}
-    \Xhline{2\arrayrulewidth}
+    \Xhline{4\arrayrulewidth}
 Variable & Category & Frequency & Percentage (\%) \\ \hline
-Year & 2020-2021 & `r SampleSizes_G3$SchoolYear[1]` & `r SampleSizes_G3Perc$SchoolYear[1]` \\
-     & 2022-2023 & `r SampleSizes_G3$SchoolYear[2]` & `r SampleSizes_G3Perc$SchoolYear[2]` \\
-Semester & Fall & `r SampleSizes_G3$Semester[1]` & `r SampleSizes_G3Perc$Semester[1]` \\
-         & Spring & `r SampleSizes_G3$Semester[2]` & `r SampleSizes_G3Perc$Semester[2]` \\
-School & `r names(SampleSizes_G3$School[1])` & `r SampleSizes_G3$School[1]` & `r SampleSizes_G3Perc$School[1]` \\
-       & `r names(SampleSizes_G3$School[2])` & `r SampleSizes_G3$School[2]` & `r SampleSizes_G3Perc$School[2]` \\
-Grade & `r names(SampleSizes_G3$Grade[1])` & `r SampleSizes_G3$Grade[1]` & `r SampleSizes_G3Perc$Grade[1]` \\
-      & `r names(SampleSizes_G3$Grade[2])` & `r SampleSizes_G3$Grade[2]` & `r SampleSizes_G3Perc$Grade[2]` \\
-      & `r names(SampleSizes_G3$Grade[3])` & `r SampleSizes_G3$Grade[3]` & `r SampleSizes_G3Perc$Grade[3]` \\
-Gender & `r names(SampleSizes_G3$Gender[1])` & `r SampleSizes_G3$Gender[1]` & `r SampleSizes_G3Perc$Gender[1]` \\
-       & `r names(SampleSizes_G3$Gender[2])` & `r SampleSizes_G3$Gender[2]` & `r SampleSizes_G3Perc$Gender[2]` \\
-       & `r names(SampleSizes_G3$Gender[3])` & `r SampleSizes_G3$Gender[3]` & `r SampleSizes_G3Perc$Gender[3]` \\
-Gender2 & `r names(SampleSizes_G3$Gender[1])` & `r SampleSizes_G3$Gender[1]` & `r SampleSizes_G3Perc$Gender[1]` \\
-       & `r names(SampleSizes_G3$Gender[2])` & `r SampleSizes_G3$Gender[2]` & `r SampleSizes_G3Perc$Gender[2]` \\
-Race & Black/African American & `r SampleSizes_G3$Race2[1]` & `r SampleSizes_G3Perc$Race2[1]` \\
-     & Hispanic/Latino & `r SampleSizes_G3$Race2[2]` & `r SampleSizes_G3Perc$Race2[2]` \\
-     & White/Caucasion & `r SampleSizes_G3$Race2[4]` & `r SampleSizes_G3Perc$Race2[4]` \\
-     & Other & `r SampleSizes_G3$Race2[3]` & `r SampleSizes_G3Perc$Race2[3]` \\ \hline
-Total & & 82 & 100 \\ \hline
-    \end{tabular}
-  \end{center}
-\end{table}
-
-
-\begin{table}[H]
-  \begin{center}
-    \caption{Demographics of the middle school students in the S-STEM survey data}
-    \begin{tabular}{llcc}
-    \Xhline{2\arrayrulewidth}
-Variable & Category & Frequency & Percentage (\%) \\ \hline
-Year & 2020-2021 & `r SampleSizes_G2$SchoolYear[1]` & `r SampleSizes_G2Perc$SchoolYear[1]` \\
-     & 2022-2023 & `r SampleSizes_G2$SchoolYear[2]` & `r SampleSizes_G2Perc$SchoolYear[2]` \\
-Semester & Fall & `r SampleSizes_G2$Semester[1]` & `r SampleSizes_G2Perc$Semester[1]` \\
-         & Spring & `r SampleSizes_G2$Semester[2]` & `r SampleSizes_G2Perc$Semester[2]` \\
-School & `r names(SampleSizes_G2$School[1])` & `r SampleSizes_G2$School[1]` & `r SampleSizes_G2Perc$School[1]` \\
-       & `r names(SampleSizes_G2$School[2])` & `r SampleSizes_G2$School[2]` & `r SampleSizes_G2Perc$School[2]` \\
-Grade & `r names(SampleSizes_G2$Grade[1])` & `r SampleSizes_G2$Grade[1]` & `r SampleSizes_G2Perc$Grade[1]` \\
-      & `r names(SampleSizes_G2$Grade[2])` & `r SampleSizes_G2$Grade[2]` & `r SampleSizes_G2Perc$Grade[2]` \\
-      & `r names(SampleSizes_G2$Grade[3])` & `r SampleSizes_G2$Grade[3]` & `r SampleSizes_G2Perc$Grade[3]` \\
-Gender2 & `r names(SampleSizes_G2$Gender[1])` & `r SampleSizes_G2$Gender[1]` & `r SampleSizes_G2Perc$Gender[1]` \\
-       & `r names(SampleSizes_G2$Gender[2])` & `r SampleSizes_G2$Gender[2]` & `r SampleSizes_G2Perc$Gender[2]` \\
-Race & Black/African American & `r SampleSizes_G2$Race2[1]` & `r SampleSizes_G2Perc$Race2[1]` \\
-     & Hispanic/Latino & `r SampleSizes_G2$Race2[2]` & `r SampleSizes_G2Perc$Race2[2]` \\
-     & White/Caucasion & `r SampleSizes_G2$Race2[4]` & `r SampleSizes_G2Perc$Race2[4]` \\
-     & Other & `r SampleSizes_G2$Race2[3]` & `r SampleSizes_G2Perc$Race2[3]` \\ \hline
-Total & & 82 & 100 \\ \hline
+SchoolYear & 2020-2021 & `r SampleSizes$SchoolYear[1]` & `r SampleSizesPerc$SchoolYear[1]` \\
+     & 2022-2023 & `r SampleSizes$SchoolYear[2]` & `r SampleSizesPerc$SchoolYear[2]` \\ \cline{2-4}
+Semester & Fall & `r SampleSizes$Semester[1]` & `r SampleSizesPerc$Semester[1]` \\
+         & Spring & `r SampleSizes$Semester[2]` & `r SampleSizesPerc$Semester[2]` \\ \cline{2-4}
+YearSemester & `r names(SampleSizes$YearSemester[1])` & `r SampleSizes$YearSemester[1]` & `r SampleSizesPerc$YearSemester[1]` \\
+         & `r names(SampleSizes$YearSemester[2])` & `r SampleSizes$YearSemester[2]` & `r SampleSizesPerc$YearSemester[2]` \\
+         & `r names(SampleSizes$YearSemester[3])` & `r SampleSizes$YearSemester[3]` & `r SampleSizesPerc$YearSemester[3]` \\ \hline
+School & `r names(SampleSizes$School[1])` & `r SampleSizes$School[1]` & `r SampleSizesPerc$School[1]` \\
+       & `r names(SampleSizes$School[2])` & `r SampleSizes$School[2]` & `r SampleSizesPerc$School[2]` \\ \hline
+Grade & `r names(SampleSizes$Grade[1])` & `r SampleSizes$Grade[1]` & `r SampleSizesPerc$Grade[1]` \\ 
+      & `r names(SampleSizes$Grade[2])` & `r SampleSizes$Grade[2]` & `r SampleSizesPerc$Grade[2]` \\
+      & `r names(SampleSizes$Grade[3])` & `r SampleSizes$Grade[3]` & `r SampleSizesPerc$Grade[3]` \\ \hline
+Gender & `r names(SampleSizes$Gender[1])` & `r SampleSizes$Gender[1]` & `r SampleSizesPerc$Gender[1]` \\
+       & `r names(SampleSizes$Gender[2])` & `r SampleSizes$Gender[2]` & `r SampleSizesPerc$Gender[2]` \\
+       & `r names(SampleSizes$Gender[3])` & `r SampleSizes$Gender[3]` & `r SampleSizesPerc$Gender[3]` \\ \cline{2-4}
+Gender2 & `r names(SampleSizes$Gender2[1])` & `r SampleSizes$Gender2[1]` & `r SampleSizesPerc$Gender2[1]` \\
+       & `r names(SampleSizes$Gender2[2])` & `r SampleSizes$Gender2[2]` & `r SampleSizesPerc$Gender2[2]` \\ \hline
+Race & American Indian/Alaska Native & `r SampleSizes$Race[1]` & `r SampleSizesPerc$Race[1]` \\
+     & Black/African American & `r SampleSizes$Race[2]` & `r SampleSizesPerc$Race[2]` \\
+     & Hispanic/Latino & `r SampleSizes$Race[3]` & `r SampleSizesPerc$Race[3]` \\
+     & Multiracial & `r SampleSizes$Race[4]` & `r SampleSizesPerc$Race[4]` \\
+     & Other & `r SampleSizes$Race[5]` & `r SampleSizesPerc$Race[5]` \\
+     & White/Caucasian & `r SampleSizes$Race[6]` & `r SampleSizesPerc$Race[6]` \\ \cline{2-4}
+Race2 & Black/African American & `r SampleSizes$Race2[1]` & `r SampleSizesPerc$Race2[1]` \\
+     & Hispanic/Latino & `r SampleSizes$Race2[2]` & `r SampleSizesPerc$Race2[2]` \\
+     & White/Caucasion & `r SampleSizes$Race2[4]` & `r SampleSizesPerc$Race2[4]` \\
+     & Other & `r SampleSizes$Race2[3]` & `r SampleSizesPerc$Race2[3]` \\ \hline
+Total & & \textbf{82} & \textbf{100} \\ \Xhline{4\arrayrulewidth}
     \end{tabular}
   \end{center}
 \end{table}
@@ -206,15 +193,21 @@ Residuals & 11472.2 & 209
 \end{table}
 
 ## Logistical Regression Modeling
-
+```{r}
+# \text{log}\left( \frac{\pi_i}{1-\pi_i} \right) &= \beta_0 + \sum_{j=1}^p X_{ij}\beta_j \\
+# i &= 1, ..., n = 70, \text{ for number of students} \\
+# j &= 1, ..., p = 4,  \text{ for p parameters}
+```
 $$
 \begin{aligned}
 E(Y_i|\textbf{X}_i) &= P(Y_i = 1) = \pi_i \\
-\text{logit}(\pi_i) &= \text{log}\left( \frac{\pi_i}{1-\pi_i} \right) = \beta_0 + \sum_{j=1}^p X_{ij}\beta_j \\
-i &= 1, ..., n \text{ for particular student} \\
-j &= 1, ..., p \text{ for p parameters}
+\text{logit}(\pi_i) &= \text{log}\left( \frac{\pi_i}{1-\pi_i} \right) = \text{log}(\text{Odds}_i) \text{ for } i = 1, ..., n = 70, \text{ for number of students} \\
+\text{log}(\text{Odds}_i) &= \beta_0 + \beta_1\text{SchoolPhillipsMiddleSchool}_i + \beta_2\text{Grade7th}_i \\
+&+ \beta_3\text{Grade8th}_i + \beta_4\text{Gender2NotMale}_i + \beta_5\text{Race2Black\_AfricanAmerican}_i \\ 
+&+ \beta_6\text{Race2White\_Caucasian}_i + \beta_7\text{Race2Hispanic\_Latino}_i \\
 \end{aligned}
 $$
+
 
 ## Non-parametric tests of group distributions
 
@@ -226,7 +219,93 @@ $$
 
 
 ## STEM students' career awareness
+### Scientists
+```{r STEM Career Awareness Scientist Load}
+load(file = "Analyses/STEM Career Awareness/CareerAwarenessScientist.RData")
+```
 
+\begin{table}[H]
+\begin{center}
+\caption{Model Summary for Scientist Career Awareness}
+\vspace{-.125in}
+```{r Model Summary for Scientist Career Awareness, fig.cap = "Model Summary for Scientist Career Awareness"}
+#### Table Summary ----
+awarenessSci_final_sumTable <- awarenessSci_final |>
+  tbl_regression(exponentiate = TRUE,
+                 conf.level = 0.95, add_estimate_to_reference_rows = TRUE, ) |>
+  # Stats
+  add_global_p(type = 2, test.statistic = "LR", quiet = FALSE) |> # add global p-value
+  add_n(location = c("label","level")) |> # add number of obs
+  add_significance_stars(pattern = "{p.value}{stars}",
+                         hide_ci = FALSE,
+                         hide_p = FALSE) |>
+  # Format Values
+  bold_p() |> # bold p-values under a given threshold (default 0.05)
+  bold_p(t = 0.05) |> # now bold q-values under the threshold of 0.10
+  bold_labels() |>
+  italicize_levels() |>
+  as_gt()
+
+
+## Format gt output
+awarenessSci_final_sumTable |>
+  tab_style(style = cell_text(align = "center"),
+            locations = cells_source_notes()) |>
+  tab_style(style = cell_text(style = "italic"),
+            locations = cells_row_groups(groups = everything()))
+```
+\end{center}
+\end{table}
+
+```{r STEM Career Awareness Science Plot, fig.align="center"}
+awarenessSci_plot_Gender <- ggplot(data = awarenessSci_emmeans_df) +
+  #geom_col(aes(x = Gender, y = prob, fill = "Scientists")) +
+  geom_col(aes(x = Gender, y = prob, fill = prob)) +#, fill = "#E41A1C") +
+  geom_errorbar(aes(ymin = asymp.LCL, ymax = asymp.UCL, x = Gender),
+                width = 0.25, linewidth = 1) +
+  # geom_text(aes(x = rev(Gender), y = -0.05, label = paste0("n = ", n)),
+  #           size = rel(4.5)) +
+  #scale_fill_manual(name = NULL, values = c("#E41A1C")) +
+  # c("#E41A1C" "#377EB8" "#4DAF4A" "#984EA3")
+  scale_x_discrete(name = "Gender2",
+                   limits = rev(awarenessSci_emmeans_df$Gender)) +
+  scale_y_continuous(limits = c(0,1), 
+                     breaks = seq(0,1, 0.1), minor_breaks = seq(0,1, 0.05),
+                     #expand = expansion(add = c(0.04,0.04))
+  ) +
+  scale_fill_gradient2(name = NULL, limits = c(0,1), #guide = "colourbar",
+                       low = "#F28F8F", mid = "#E2E2E2", high = "#64BF64",
+                       midpoint = 0.5) +
+  labs(
+    title = "DeSIRE Students' Career Awareness of Scientists by Aggregated Gender",
+    subtitle = "95% Confidence Interval about Expected Probability of Career Awareness",
+    y = "Probability of Scientist Career Awareness"
+  ) +
+  coord_flip() +
+  theme_bw() +
+  theme(
+    panel.grid.major.y = element_blank(),
+    plot.title.position = "panel",
+    plot.title = element_text(size = rel(1.3)),
+    plot.subtitle = element_text(size = rel(1.1), face = "italic"),
+    axis.title = element_text(size = rel(1.1)),
+    axis.text.y = element_text(size = rel(1.1), hjust = 0.5),
+    axis.text.x = element_text(size = rel(1.1))
+  )
+awarenessSci_plot_Gender
+```
+
+### Engineers
+```{r STEM Career Awareness Engineers Load}
+```
+
+### Mathematicians
+```{r STEM Career Awareness Mathematicians Load}
+```
+
+### Technologists
+```{r STEM Career Awareness Technologists Load}
+```
 
 ## Students' STEM interest
 

@@ -52,14 +52,23 @@ library(readxl) # Read xlsx
 library(stringr) # Manipulate strings
 library(plyr) # Produce summary tables/data.frames
 
+## Plotting
+library(scales)
+library(RColorBrewer)
+library(patchwork)
+
 ## Data Analysis
 library(likert)
+library(psych)
+library(agricolae)
 library(lme4)
 library(lmtest)
 library(car)
 library(emmeans)
 library(betareg)
 library(caret)
+library(jtools)
+library(blorr)
 
 ## Bayesian Data Analysis
 library(DescTools)
@@ -68,9 +77,6 @@ library(brms)
 library(posterior)
 library(bayesplot)
 library(BayesFactor)
-
-## Plotting
-library(patchwork)
 
 ## Load this package last to reduce package conflictions with dplyr
 library(tidyverse) 
@@ -280,8 +286,9 @@ SSTEMsurvey_data5 <- SSTEMsurvey_data4 |>
 #### Remove duplicated students ----
 SSTEMsurvey_data6 <- SSTEMsurvey_data5 |>
   mutate(
-    Gender2 = factor(ifelse(Gender == "Other", NA, as.character(Gender)),
-                     levels = c("Male", "Female"))
+    Gender2 = factor(Gender, 
+                     levels = c("Male", "Female", "Other"),
+                     labels = c("Male", "Not Male", "Not Male"))
   ) |>
   select(
     1:19,
