@@ -52,6 +52,15 @@ library(readxl) # Read xlsx
 library(stringr) # Manipulate strings
 library(plyr) # Produce summary tables/data.frames
 
+## Plotting
+library(scales)
+library(RColorBrewer)
+library(patchwork)
+
+## Tables
+library(gt)
+library(gtsummary)
+
 ## Data Analysis
 library(likert)
 library(psych)
@@ -62,6 +71,8 @@ library(car)
 library(emmeans)
 library(betareg)
 library(caret)
+library(jtools)
+library(blorr)
 
 ## Bayesian Data Analysis
 library(DescTools)
@@ -70,12 +81,6 @@ library(brms)
 library(posterior)
 library(bayesplot)
 library(BayesFactor)
-
-## Plotting
-library(patchwork)
-
-## Load this package last to reduce package conflictions with dplyr
-library(tidyverse) 
 
 ## Load this package last to reduce package conflictions with dplyr
 library(tidyverse) 
@@ -96,6 +101,7 @@ Mathsurvey <- SSTEMsurvey_data |>
     School,
     Grade,
     Gender,
+    Gender2,
     Race,
     Race2,
     str_which(colnames(SSTEMsurvey_data), pattern = "Math")
@@ -110,28 +116,49 @@ Mathsurvey <- SSTEMsurvey_data |>
 CronbachAlpha(Mathsurvey |> select(str_which(colnames(Mathsurvey), pattern = "Math")), 
               na.rm = TRUE)
 
-alpha(Mathsurvey |> select(str_which(colnames(Mathsurvey), pattern = "Math")),
-      cumulative = TRUE)
+MathAlpha <- alpha(Mathsurvey |> select(str_which(colnames(Mathsurvey), pattern = "Math")),
+      cumulative = FALSE)
 
 ## Calculate Aggregate Score ----
 Mathsurvey_data <- Mathsurvey |>
   rowwise() |>
   mutate(
-    MathScore = mean(c_across(str_subset(colnames(Mathsurvey), pattern = "Math")), na.rm = TRUE)
+    MeanMathScore = mean(c_across(str_subset(colnames(Mathsurvey), pattern = "Math")), na.rm = TRUE),
+    SumMathScore = sum(c_across(str_subset(colnames(Mathsurvey), pattern = "Math")), na.rm = TRUE)
   ) |>
   filter(
-    complete.cases(MathScore)
+    complete.cases(MeanMathScore)
   )
-hist((Mathsurvey_data$MathScore))
-plot(density(Mathsurvey_data$MathScore))
+hist((Mathsurvey_data$MeanMathScore))
+plot(density(Mathsurvey_data$MeanMathScore))
+
+hist((Mathsurvey_data$SumMathScore))
+plot(density(Mathsurvey_data$SumMathScore))
 
 ## Sample Sizes ----
 ### By Each Factor ----
-table(Mathsurvey_data$SchoolYear, Mathsurvey_data$Semester)
+table(Mathsurvey_data$YearSemester)
 table(Mathsurvey_data$School)
 table(Mathsurvey_data$Grade)
 table(Mathsurvey_data$Gender)
 table(Mathsurvey_data$Race2)
+
+SampleSize_data <- SSTEMsurvey_data |>
+  select(
+    Semester,
+    YearSemester,
+    School,
+    Grade,
+    Gender,
+    Gender2,
+    Race,
+    Race2
+  )
+
+SampleSizes <- apply(SampleSize_data, 2, table)
+SampleSizesPerc <- lapply(SampleSizes, function(x){round(x/nrow(SampleSize_data)*100, 2)})
+SampleSizes
+SampleSizesPerc
 
 ### All combinations ----
 Math_SampleSizes_All <- ddply(Mathsurvey_data, .(School, Grade, Gender, Race2), summarise, .drop = FALSE,
@@ -169,11 +196,11 @@ Mathsurvey_data <- Mathsurvey_data |>
                               ifelse(MathScoreScaled == 1, 0.99999, MathScoreScaled))
   )
 
-Mathsurvey_data2 <- Mathsurvey_data |>
-  filter(Gender %in% c("Male", "Female")) |>
-  mutate(
-    Gender = droplevels(Gender)
-  )
+# Mathsurvey_data2 <- Mathsurvey_data |>
+#   filter(Gender %in% c("Male", "Female")) |>
+#   mutate(
+#     Gender = droplevels(Gender)
+#   )
 
 ## Plot Data ----
 ### Density ----
@@ -226,83 +253,56 @@ plot(SSTEMlikertMath) +
 
 ## LINEAR REGRESSION ----
 ### Model 1 ----
-linM1 <- lm(data = Mathsurvey_data2,
+linM1 <- lm(data = Mathsurvey_data,
             MathScore ~ 
               School 
-            + Semester
             + Grade 
-            + Gender
+            + Gender2
             + Race2 
-            #+ School:Grade 
-            + School:Gender 
-            + School:Race2 
-            + Grade:Gender
-            #+ Grade:Race2
-            #+ Gender:Race2
+            + Gender2:Race2
             )
 summary(linM1)
 vif(linM1, type = "predictor")
-linM1_step <- step(linM1, direction = "both")
+step(linM1, direction = "both")
 drop1(linM1, test = "Chisq")
-Anova(linM1, type = 2, test = "Chisq")
-anova(linM1)
+Anova(linM1, type = 2, test.statistic = "F")
 
+# Check assumptions
 plot(linM1)
 shapiro.test(linM1$residuals)
 DurbinWatsonTest(linM1)
 ncvTest(linM1)
 
 ### Model 2 ----
-linM2 <- lm(data = Mathsurvey_data2,
+linM2 <- lm(data = Mathsurvey_data,
             MathScore ~ 
-              #School 
-            + Semester
-            #+ Grade 
-            + Gender
-            #+ Race2 
-            #+ School:Grade 
-            #+ School:Gender 
-            #+ School:Race2 
-            #+ Grade:Gender
-            #+ Grade:Race2
-            #+ Gender:Race2
+              Gender2
 )
 summary(linM2)
-vif(linM2, type = "predictor")
-vif(linM2, type = "terms")
-Anova(linM2, type = 2, test.statistic = "F", error.estimate = "dispersion")
-linM2_step <- step(linM2, direction = "both")
-anova(linM2)
+Anova(linM2, type = 2, test.statistic = "F")
 
 plot(linM2)
 shapiro.test(linM2$residuals)
 DurbinWatsonTest(linM2)
 ncvTest(linM2)
 
-emmeans(linM2, specs = "Semester", by = "Gender")
+emmeans(linM2, specs = "Gender2")
 
 ## BETA REGRESSION ----
 ### Frequentist ----
 #### Model 1 ----
 set.seed(52)
-betaM1 <- betareg(data = Mathsurvey_data2,
+betaM1 <- betareg(data = Mathsurvey_data,
                   MathScoreScaled2 ~ 
                     School 
                   + Grade 
-                  + Gender
+                  + Gender2
                   + Race2 
-                  + School:Grade 
-                  + School:Gender 
-                  + School:Race 
-                  + Grade:Gender
-                  + Grade:Race
-                  + Gender:Race
-                  ,
-                  #na.action = na.omit
+                  + Gender2:Race2, 
 )
 betaM1_sum <- summary(betaM1, type = "pearson", phi = NULL)
 betaM1_sum
-Anova(betaM1)
+Anova(betaM1, type = 3)
 vif(betaM1)
 
 ###### Diagnostic Checks ----
