@@ -180,6 +180,12 @@ k &= 1, ..., n_{ij} \text{ for \# students per group} \\
 \end{aligned}
 $$
 
+$$
+\begin{aligned}
+
+\end{aligned}
+$$
+
 \begin{table}[H]
 \begin{center}
 \caption{ANOVA Table}
@@ -193,11 +199,7 @@ Residuals & 11472.2 & 209
 \end{table}
 
 ## Logistical Regression Modeling
-```{r}
-# \text{log}\left( \frac{\pi_i}{1-\pi_i} \right) &= \beta_0 + \sum_{j=1}^p X_{ij}\beta_j \\
-# i &= 1, ..., n = 70, \text{ for number of students} \\
-# j &= 1, ..., p = 4,  \text{ for p parameters}
-```
+
 $$
 \begin{aligned}
 E(Y_i|\textbf{X}_i) &= P(Y_i = 1) = \pi_i \\
