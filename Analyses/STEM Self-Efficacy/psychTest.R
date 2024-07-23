@@ -140,27 +140,62 @@ describe(my.scores)
 
 pairs.panels(my.scores, pch = ".")
 
-bfi <- bfi
-sdData <- mySurvey |>
+
+mySurvey2 <- mySurvey |>
   select(
     "YearSemester",
     "School",
     "Grade", 
     "Gender2",
     "Race2",
-    c(str_which(colnames(SSTEMsurvey_data), pattern = "Math")),
-    c(str_which(colnames(SSTEMsurvey_data), pattern = "Science")),
-    c(str_which(colnames(SSTEMsurvey_data), pattern = "EngTech")),
-    c(str_which(colnames(SSTEMsurvey_data), pattern = "Learning"))
+    c(str_which(colnames(mySurvey), pattern = "Math")),
+    c(str_which(colnames(mySurvey), pattern = "Science")),
+    c(str_which(colnames(mySurvey), pattern = "EngTech")),
+    c(str_which(colnames(mySurvey), pattern = "Learning"))
+  ) |>
+  mutate(
+    MathScore = my.scores[,1],
+    ScienceScore = my.scores[,2],
+    EngTechScore = my.scores[,3],
+    LearningScore = my.scores[,4]
   )
-sb <- statsBy(data = sdData,
-              group = c("YearSemester",
-                        "School",
-                        "Grade", 
-                        "Gender2",
-                        "Race2"),
-              cors = TRUE)
-sb
+
+MathData <- mySurvey2 |>
+  select(
+    "YearSemester",
+    "School",
+    "Grade", 
+    "Gender2",
+    "Race2",
+    "MathScore"
+  )
+
+describeBy(MathData, group = c("School"))
+describeBy(MathScore ~ YearSemester + School + Grade + Gender2 + Race2, data = MathData)
+
+groupStatsMath <- statsBy(data = MathData ,#|> select("YearSemester", "School", "Grade","Gender2", "Race2"),
+                          group = c(
+                            #"YearSemester",
+                            #"School",
+                            #"Grade"
+                            "Gender2",
+                            "Race2"
+                          ),
+                          cors = TRUE)
+print(groupStatsMath, short = FALSE)
+
+groupStatsMath$F
+
+
+ggplot(data = MathData, aes(x = Gender2, y = MathScore, color = YearSemester)) +
+  geom_point(position = position_jitter(width = 0.05)) +
+  geom_smooth(aes(group = YearSemester), method = "lm") +
+  facet_wrap(vars(Race2)) +
+  scale_y_continuous(limits = c(1,5)) +
+  theme_bw()
+  
+
+
 # Factor Analysis
 fa <- faBy(sb,nfactors=1)
 print(fa)
@@ -177,17 +212,52 @@ lmCor(y = c(str_which(colnames(mySurvey), pattern = "Math")),
       data=mySurvey
 )
 
-## Check Cronbach alpha of Math Questions
-CronbachAlpha(Mathsurvey |> select(str_which(colnames(Mathsurvey), pattern = "Math")), 
-              na.rm = TRUE)
-
-MathAlpha <- alpha(Mathsurvey |> select(str_which(colnames(Mathsurvey), pattern = "Math")),
-                   cumulative = FALSE)
+library(haven)
+mlmdata <- read_dta("https://stats.idre.ucla.edu/stat/examples/imm/imm10.dta")
 
 
 
 
+set.seed(2020)
 
+# Load original data
+bounce_data <- read_csv("../data/bounce_rates_original.csv", col_types = cols() )
+
+# Compute mean and stdev for each gorup
+suff_stats <- bounce_data %>% 
+  group_by(county) %>% 
+  summarise(mu_bounce=mean(bounce_time), sd_bounce = sd(bounce_time),
+            mu_age = mean(age), sd_age = sd(age))
+
+# Initialize df
+sim_df <- tibble(bounce_time = double(),
+                 age = integer(),
+                 county = character())
+
+# Randomize counties, set max group size, set group samp props in relation to max grp size
+county_subset <- sample(unique(bounce_data$county))
+grp_size=150
+props <- c(0.05, 0.15, 0.25, 0.5, 0.6, 0.75, 0.8, 1)
+
+# Generate simulated data
+for (i in 1:nrow(suff_stats)){
+  
+  n = grp_size*props[i]
+  
+  sim_times <- rnorm(n, suff_stats$mu_bounce[i], 
+                     suff_stats$sd_bounce[i])
+  
+  sim_ages <- rnorm(n, suff_stats$mu_age[i],
+                    suff_stats$sd_age[i])
+  
+  
+  tmp_county = tibble(bounce_time = sim_times,
+                      age = round(sim_ages),
+                      county = county_subset[i])
+  
+  sim_df <- bind_rows(sim_df, tmp_county)
+  
+}
 
 
 
