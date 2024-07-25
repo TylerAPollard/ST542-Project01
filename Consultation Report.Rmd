@@ -180,12 +180,6 @@ k &= 1, ..., n_{ij} \text{ for \# students per group} \\
 \end{aligned}
 $$
 
-$$
-\begin{aligned}
-
-\end{aligned}
-$$
-
 \begin{table}[H]
 \begin{center}
 \caption{ANOVA Table}
@@ -316,7 +310,62 @@ awarenessSci_plot_Gender
 
 
 ## Students' STEM self-efficacy
+### Math Construct
+```{r}
+load(file = "Analyses/STEM Self-Efficacy/Math Data.RData")
+```
 
+\begin{table}[H]
+\begin{center}
+\begin{tabular}{lcccc}
+\multicolumn{5}{c}{\textbf{Model Summary for Math Self-Efficacy}} \\ \Xhline{3\arrayrulewidth}
+\textbf{Variable} & \textbf{N} & $\boldsymbol{\beta}$ & $\textbf{SD}^1$ & $\textbf{95\% CI}^2$ \\ \Xhline{3\arrayrulewidth}
+Intercept & 82 & `r round(MathModelSum$Estimate[1], 2)` & `r round(MathModelSum$Est.Error[1], 2)` & (`r round(MathModelSum$Q2.5[1], 2)`, `r round(MathModelSum$Q97.5[1], 2)`) \\ \hline
+\multicolumn{5}{l}{$^1$ SD = Standard Deviation} \\ 
+\multicolumn{5}{l}{$^2$ CI = Credible Interval} \\ \Xhline{3\arrayrulewidth}
+\end{tabular}
+\end{center}
+\end{table}
+
+### Science Construct
+```{r}
+load(file = "Analyses/STEM Self-Efficacy/Science Data.RData")
+```
+
+\begin{table}[H]
+\begin{center}
+\begin{tabular}{lcccc}
+\multicolumn{5}{c}{\textbf{Model Summary for Science Self-Efficacy}} \\ \Xhline{3\arrayrulewidth}
+\textbf{Variable} & \textbf{N} & $\boldsymbol{\beta}$ & $\textbf{SD}^1$ & $\textbf{95\% CI}^2$ \\ \Xhline{3\arrayrulewidth}
+Intercept & 82 & `r round(blinPostSum$Estimate[1], 2)` & `r round(blinPostSum$Est.Error[1], 2)` & (`r round(blinPostSum$Q2.5[1], 2)`, `r round(blinPostSum$Q97.5[1], 2)`) \\ \hline
+School & & & \\
+\hspace{3mm} West Edgecombe Middle School & 26 & \textendash & \textendash & \textendash \\
+\hspace{3mm} Phillips Middle School & 56 & `r round(blinPostSum$Estimate[2], 2)` & `r round(blinPostSum$Est.Error[2], 2)` & (`r round(blinPostSum$Q2.5[2], 2)`, `r round(blinPostSum$Q97.5[2], 2)`) \\ \hline
+Gender & & & \\
+\hspace{3mm} Male & 39 & \textendash & \textendash & \textendash \\
+\hspace{3mm} Not Male & 43 & `r round(blinPostSum$Estimate[3], 2)` & `r round(blinPostSum$Est.Error[3], 2)` & (`r round(blinPostSum$Q2.5[3], 2)`, `r round(blinPostSum$Q97.5[3], 2)`) \\ \hline
+\multicolumn{5}{l}{$^1$ SD = Standard Deviation} \\ 
+\multicolumn{5}{l}{$^2$ CI = Credible Interval} \\ \Xhline{3\arrayrulewidth}
+\end{tabular}
+\end{center}
+\end{table}
+
+\begin{table}[H]
+\begin{center}
+\begin{tabular}{lcc}
+\multicolumn{3}{c}{\textbf{Expected Marginal Means for Science Self-Efficacy}} \\ \Xhline{3\arrayrulewidth}
+\textbf{Variable} & $\textbf{EMM}^1$ & $\textbf{95\% CI}^2$ \\ \Xhline{3\arrayrulewidth}
+School & &  \\
+\hspace{3mm} West Edgecombe Middle School & `r round(blinEMM_SchoolSum$Mean[1], 2)` & (`r round(blinEMM_SchoolSum$LCB[1], 2)`, `r round(blinEMM_SchoolSum$UCB[1], 2)`) \\
+\hspace{3mm} Phillips Middle School & `r round(blinEMM_SchoolSum$Mean[2], 2)` & (`r round(blinEMM_SchoolSum$LCB[2], 2)`, `r round(blinEMM_SchoolSum$UCB[2], 2)`) \\ \hline
+Gender & &  \\
+\hspace{3mm} Male & `r round(blinEMM_Gender2Sum$Mean[1], 2)` & (`r round(blinEMM_Gender2Sum$LCB[1], 2)`, `r round(blinEMM_Gender2Sum$UCB[1], 2)`)  \\
+\hspace{3mm} Not Male & `r round(blinEMM_Gender2Sum$Mean[2], 2)` & (`r round(blinEMM_Gender2Sum$LCB[2], 2)`, `r round(blinEMM_Gender2Sum$UCB[2], 2)`)  \\ \hline
+\multicolumn{3}{l}{$^1$ EMM = Expected Marginal Mean} \\
+\multicolumn{3}{l}{$^2$ CI = Credible Interval} \\ \Xhline{3\arrayrulewidth}
+\end{tabular}
+\end{center}
+\end{table}
 
 # Conclusion
 
