@@ -271,6 +271,7 @@ str(EOG_df7)
 EOG7_dps <- which(duplicated(EOG_df7 |> select(`Student Number`, grade)))
 EOG_df7 <- EOG_df7 |> slice(-c(EOG7_dps, EOG7_dps-1))
 
+EOGnonpaired_df <- EOG_df7
 EOGpaired_df <- EOG_df7 |>
   select(-dosageB, -dosage2B) |>
   pivot_wider(names_from = grade,
@@ -319,7 +320,7 @@ brmpair1B <- brm(Level_8 ~ sex + ethnic + dosage + Level_5 + dosage:Level_5,
                  control = list(adapt_delta = 0.95)
 )
 
-brmpair1B
+print(brmpair1B, digits = 4)
 condPairs1B <- conditional_effects(brmpair1B, categorical = TRUE, effects = "dosage")
 condPairs1B_df <- condPairs1$`dosage:cats__`
 condPairs1B
@@ -393,7 +394,6 @@ brmpair2C <- brm(Level_8 ~ sex + ethnic + dosage2 + Level_5 + dosage2:Level_5 + 
                  control = list(adapt_delta = 0.95)
 )
 
-save(brmpair2C, file = "Analyses/EOG Science/PairedOrdinalFit.RData")
 brmpair2C
 bayes_factor(brmpair2C, brmpair2)
 bayes_factor(brmpair2C, brmpair2B)
@@ -441,7 +441,6 @@ brmpair2D <- brm(Level_8 ~ ethnic + dosage2 + Level_5 + dosage2:Level_5,
                  control = list(adapt_delta = 0.95)
 )
 
-save(brmpair2D, file = "Analyses/EOG Science/PairedOrdinalFit.RData")
 brmpair2D
 bayes_factor(brmpair2D, brmpair2)
 bayes_factor(brmpair2D, brmpair2B)
@@ -481,205 +480,6 @@ condpairs2D <- conditional_effects(brmpair2D, categorical = TRUE, effects = "dos
 condpairs2D
 condpairs2D_df <- condpairs2D$`dosage2:cats__`
 
-### Final Model ----
-brmpairFinal2 <- brm(Level_8 ~ ethnic + dosage2 + Level_5 + dosage2:Level_5,
-                     data = EOGpaired_df, 
-                     family = cumulative(link = "probit"), 
-                     save_pars = save_pars(all = TRUE),
-                     seed = 52, 
-                     iter = 1000,
-                     control = list(adapt_delta = 0.95),
-                     backend = "cmdstanr"
-)
-brmpairFinal
-loo(brmpairFinal)
-waic(brmpairFinal)
-bayes_R2(brmpairFinal)
-performance(brmpairFinal)
-
-tidy(brmpairFinal)
-
-pp_check(brmpairFinal, ndraws = 100, type = "bars")
-
-save(brmpairFinal, file = "Analyses/EOG Science/PairedOrdinalFit.RData")
-bayes_factor(brmpairFinal, brmpair2C)
-
-
-conditional_effects(brmpairFinal, categorical = TRUE)
-condPlotCont <- conditional_effects(brmpairFinal, effects = "dosage2:Level_5")
-condPlotCont_df <- condPlotCont$`dosage2:Level_5`
-
-conditionsFinal <- make_conditions(EOGpaired_df, vars = c("Level_5"))
-conditionsFinal <- conditionsFinal |>
-  filter(Level_5 != "Level 5") |>
-  mutate(Level_5 = droplevels(Level_5))
-condPlotFac <- conditional_effects(brmpairFinal, categorical = TRUE, 
-                                   effects = "dosage2",
-                                   conditions = conditionsFinal, 
-                                   method = "posterior_epred",
-                                   re_formula = NA,
-                                   prob = 0.95)
-condPlotFac
-condPlotFac_df <- condPlotFac$`dosage2:cats__`
-condPlotFac_df
-condPlotFac_df2 <- condPlotFac_df |>
-  select(
-    dosage2, Level_5, effect2__, estimate__, se__, lower__, upper__
-  ) |>
-  group_by(dosage2, Level_5, effect2__) |>
-  summarise(
-    Probability = mean(estimate__),
-    Lower = mean(lower__),
-    Upper = mean(upper__)
-  ) |>
-  rename(
-    "Dosage" = dosage2,
-    "Grade 5 Level" = Level_5,
-    "Grade 8 Level" = effect2__
-  )
-condPlotFac_df2
-
-muted("red", l = 70, c = 70)
-"#F28F8F"
-muted("gold", l = 70, c = 70)
-"#C6A93A"
-muted("green", l = 70, c = 70)
-"#64BF64"
-muted("blue", l = 50, c = 50)
-"#7171AD"
-
-brewer.pal(9, "Reds")
-"#FFF5F0" "#FEE0D2" "#FCBBA1" "#FC9272" "#FB6A4A" "#EF3B2C" "#CB181D" "#A50F15" "#67000D"
-
-brewer.pal(9, "Oranges")
-"#FFF5EB" "#FEE6CE" "#FDD0A2" "#FDAE6B" "#FD8D3C" "#F16913" "#D94801" "#A63603" "#7F2704"
-
-brewer.pal(4, "Greens")
-"#EDF8E9" "#BAE4B3" "#74C476" "#238B45"
-
-brewer.pal(4, "Blues")
-"#EFF3FF" "#BDD7E7" "#6BAED6" "#2171B5"
-
-ggplot(data = condPlotFac_df2) +
-  # geom_col(aes(x = Dosage, y = Probability, fill = Grade8Level),
-  #          position = position_dodge()) +
-  geom_errorbar(aes(x = Dosage, ymin = Lower, ymax = Upper,
-                    group = `Grade 8 Level`, color = `Grade 8 Level`),
-                position = position_dodge(width = 0.5),
-                width = 0.5, alpha = 0.5) +
-  geom_point(aes(x = Dosage, y = Probability, color = `Grade 8 Level`),
-             position = position_dodge(width = 0.5),
-             size = 2) +
-  geom_line(aes(x = Dosage, y = Probability, group = `Grade 8 Level`, color = `Grade 8 Level`),
-            position = position_dodge(width = 0.5), linewidth = 1) +
-  # geom_ribbon(aes(x = Dosage, ymin = Lower, ymax = Upper, 
-  #                 group = Grade8Level, fill = Grade8Level),
-  #             alpha = 0.3) +
-  scale_y_continuous(limits = c(0,1), breaks = seq(0,1,0.1)) +
-  scale_color_manual(values = c("#F28F8F", "gold2", "#74C476","#6BAED6")) +
-  labs(
-    title = "Probability of Score Level on 8th Grade EOG given 5th Grade Level and Dosage",
-    subtitle = "95% Credible Interval about Expected Probability",
-    y = "Probability of 8th Grade Level",
-    x = "Number of Years in DeSIRE Program"
-  ) +
-  facet_wrap(vars(`Grade 5 Level`), nrow = 1, labeller = label_both) +
-  theme_bw() +
-  theme(
-    plot.title = element_text(face = "bold", size = 16),
-    plot.subtitle = element_text(face = "italic", size = 14),
-    panel.grid.major.x = element_blank(),
-    axis.title = element_text(size = 14),
-    axis.text = element_text(size = 12)
-  )
-
-
-emmeans(brmpairFinal, specs = c("dosage2", "Level_5"), type = "response")
-
-newdataobs <- expand.grid(
-  dosage2 = c("0","1","2"),
-  Level_5 = c('Not Proficient', 'Level 3', 'Level 4'),
-  ethnic = unique(EOGpaired_df$ethnic)
-)
-brmFinal_epreds <- posterior_epred(brmpairFinal, newdata = newdataobs)
-tidy_epred <- brmpairFinal |>
-  epred_draws(newdata = newdataobs)
-
-tidy_epred2 <- tidy_epred |>
-  group_by(dosage2, Level_5, .category) |>
-  summarise(
-    Prob = mean(.epred),
-    LCB = quantile(.epred, 0.025),
-    UCB = quantile(.epred, 0.975)
-  )
-tidy_epred2
-
-tidy_epred3 <- tidy_epred |>
-  group_by(dosage2, Level_5, .category) |>
-  point_interval(.epred, .interval = qi) |>
-  rename(
-    "Dosage" = dosage2,
-    "Grade5Level" = Level_5,
-    "Grade8Level" = .category,
-    "Probability" = .epred,
-    "LCB" = .lower,
-    "UCB" = .upper
-  )
-
-tidy_epred3
-
-ggplot(data = tidy_epred3) +
-  geom_col(aes(x = Dosage, y = Probability, fill = Grade5Level),
-           position = position_dodge()) +
-  scale_y_continuous(limits = c(0,1), breaks = seq(0,1,0.1)) +
-  facet_wrap(vars(Grade8Level), nrow = 1) +
-  theme_bw()
-
-str(condPlotFac_df2)
-
-condPlotFac_df2
-
-
-### Predictions ----
-finalPreds <- posterior_predict(brmpairFinal)
-finalPreds2 <- t(finalPreds)
-
-
-
-finalPreds3 <- cbind(
-  EOGpaired_df |> select(ethnic, dosage2, Level_5),
-  finalPreds2
-)
-
-finalProbsDosage <- finalPreds3 |>
-  select(-ethnic,-dosage2, -Level_5) |>
-  summarise(n = ~count(everything(.x)))
-
-
-count1 <- apply(finalPreds2, 1, function(x){sum(x == 1)})
-count2 <- apply(finalPreds2, 1, function(x){sum(x == 2)})
-count3 <- apply(finalPreds2, 1, function(x){sum(x == 3)})
-count4 <- apply(finalPreds2, 1, function(x){sum(x == 4)})
-
-
-finalPreds3 <- EOGpaired_df |> select(ethnic, dosage2, Level_5) |>
-  mutate(
-    Count1 = count1,
-    Count2 = count2,
-    Count3 = count3,
-    Count4 = count4
-  )
-
-finalPreds4 <- ddply(finalPreds3, .(dosage2, Level_5), summarise,
-                     Count1 = sum(Count1),
-                     Count2 = sum(Count2),
-                     Count3 = sum(Count3),
-                     Count4 = sum(Count4))
-
-sum(finalPreds3$Count1)/(102*10000)
-sum(finalPreds3$Count2)/(102*10000)
-sum(finalPreds3$Count3)/(102*10000)
-sum(finalPreds3$Count4)/(102*10000)
 
 # 7. Unpaired Ordinal Probit Regression Model ----
 EOG_df <- EOG_df5 |>
@@ -900,99 +700,309 @@ et_sum <- summary(et, type = "response")
 
 preds <- posterior_predict(brm10)
 
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+# 8. FINAL MODEL ========================================================
+## Final Model ----
+# brmpairFinal <- brm(Level_8 ~ ethnic + dosage2 + Level_5 + dosage2:Level_5,
+#                     data = EOGpaired_df, 
+#                     family = cumulative(link = "probit"), 
+#                     save_pars = save_pars(all = TRUE),
+#                     seed = 52, 
+#                     iter = 1000,
+#                     control = list(adapt_delta = 0.95),
+#                     backend = "cmdstanr"
+# )
+# 
+# save(brmpairFinal, 
+#      EOGnonpaired_df,
+#      EOGpaired_df,
+#      file = "Analyses/EOG Science/PairedOrdinalFit.RData")
 
-# OLD CODE =======
-## Diciplinary Knowledge ----
-### Analyze ----
-discKnow_aov <- lm(Score ~ School*Student,
-                   data = discKnow_data)
-discKnow_aov <- lmer(EOG ~ Student + (1|School),
-                     data = discKnow_data)
-discKnow_aov <- lm(EOG ~ Student + School,
-                   data = discKnow_data)
-discKnow_aov <- aov(EOG ~ Student + School,
-                    data = discKnow_data)
-discKnow_aov
-summary(discKnow_aov)
-Anova(discKnow_aov, type = 2)
-coef(discKnow_aov)
+## Load Data and Model ----
+load(file = "Analyses/EOG Science/PairedOrdinalFit.RData")
 
-t.test(discKnow_data |> 
-         filter(School == "West Edgecombe Middle School") |>
-         pull(EOG),
-       discKnow_data |> 
-         filter(School == "Phillips Middle School") |>
-         pull(EOG), var.equal = TRUE)
+brmpairFinal
+loo(brmpairFinal)
+waic(brmpairFinal)
+bayes_R2(brmpairFinal)
+performance(brmpairFinal)
 
-ddply(discKnow_data, .(School, Student), summarise,
-      mean(EOG))
-ddply(discKnow_data, .(School), summarise,
-      mean(EOG))
-ddply(discKnow_data, .(Student), summarise,
-      mean(EOG))
+tidy(brmpairFinal)
 
-plot(discKnow_aov, 1)
-shapiro.test(discKnow_aov$residuals)
-durbinWatsonTest(discKnow_aov)
-ncvTest(discKnow_aov)
+pp_check(brmpairFinal, ndraws = 100, type = "bars")
 
-Student_emmeans <- emmeans(discKnow_aov, specs = "Student")
-Student_emmeans <- data.frame(Student_emmeans)
-Student_emmeans <- Student_emmeans |>
-  mutate(
-    N = ddply(discKnow_data, .(Student), summarise, N = n())$N
+## Create Output Plot ----
+conditional_effects(brmpairFinal, categorical = TRUE)
+condPlotCont <- conditional_effects(brmpairFinal, effects = "dosage2:Level_5")
+condPlotCont_df <- condPlotCont$`dosage2:Level_5`
+condPlotCont
+
+conditionsFinal <- make_conditions(EOGpaired_df, vars = c("Level_5"))
+conditionsFinal <- conditionsFinal |>
+  filter(Level_5 != "Level 5") |>
+  mutate(Level_5 = droplevels(Level_5))
+condPlotFac <- conditional_effects(brmpairFinal, categorical = TRUE, 
+                                   effects = "dosage2",
+                                   conditions = conditionsFinal, 
+                                   method = "posterior_epred",
+                                   re_formula = NA,
+                                   prob = 0.95)
+condPlotFac
+condPlotFac_df <- condPlotFac$`dosage2:cats__`
+condPlotFac_df
+condPlotFac_df2 <- condPlotFac_df |>
+  select(
+    dosage2, Level_5, effect2__, estimate__, se__, lower__, upper__
+  ) |>
+  group_by(dosage2, Level_5, effect2__) |>
+  summarise(
+    Probability = mean(estimate__),
+    Lower = mean(lower__),
+    Upper = mean(upper__)
+  ) |>
+  rename(
+    "Dosage" = dosage2,
+    "Grade 5 Level" = Level_5,
+    "Grade 8 Level" = effect2__
   )
-School_emmeans <- emmeans(discKnow_aov, specs = "Student", by = "School")
-School_emmeans <- data.frame(School_emmeans)
-School_emmeans <- School_emmeans |>
-  mutate(
-    N = ddply(discKnow_data, .(School, Student), summarise, N = n())$N
-  )
+condPlotFac_df2
+writexl::write_xlsx(condPlotFac_df2, "Analyses/EOG Science/Conditional Probs for EOG Science.xlsx")
 
+muted("red", l = 70, c = 70)
+"#F28F8F"
+muted("gold", l = 70, c = 70)
+"#C6A93A"
+muted("green", l = 70, c = 70)
+"#64BF64"
+muted("blue", l = 50, c = 50)
+"#7171AD"
 
-Student_plot <- ggplot(data = Student_emmeans) +
-  geom_errorbarh(aes(y = Student, xmin = lower.CL, xmax = upper.CL)) +
-  geom_point(aes(y = Student, x = emmean)) +
-  geom_text(aes(x = -4, y = Student, label = paste0("N = ", N)), hjust = 0) +
-  scale_x_continuous(limits = c(-5,30), 
-                     breaks = seq(0,30,by=5), minor_breaks = seq(0,30,by=2.5),
-                     expand = expansion(add = c(0,1))) +
-  facet_wrap(vars("Combined")) +
-  labs(#title = "End-of-Grade Science Score of DeSIRE vs Non-DeSIRE Students in Phillips Middle School and West Edgecombe Middle School",
-    x = "EOG Science Score") +
-  theme_bw()
-Student_plot
+brewer.pal(9, "Reds")
+"#FFF5F0" "#FEE0D2" "#FCBBA1" "#FC9272" "#FB6A4A" "#EF3B2C" "#CB181D" "#A50F15" "#67000D"
 
-School_plot <- ggplot(data = School_emmeans) +
-  geom_errorbarh(aes(y = Student, xmin = lower.CL, xmax = upper.CL, color = Student),
-                 show.legend = FALSE) +
-  geom_point(aes(y = Student, x = emmean, color = Student),
-             show.legend = FALSE) +
-  geom_text(aes(x = -4, y = Student, label = paste0("N = ", N)), hjust = 0) +
-  scale_x_continuous(limits = c(-5,30), 
-                     breaks = seq(0,30,by=5), minor_breaks = seq(0,30,by=2.5),
-                     expand = expansion(add = c(0,1))) +
-  facet_wrap(vars(School), nrow = 2) +
-  labs(#title = "End-of-Grade Science Score of DeSIRE vs Non-DeSIRE\nStudents in Phillips Middle School and West Edgecombe Middle School",
-    x = "EOG Science Score") +
-  theme_bw()
-School_plot
+brewer.pal(9, "Oranges")
+"#FFF5EB" "#FEE6CE" "#FDD0A2" "#FDAE6B" "#FD8D3C" "#F16913" "#D94801" "#A63603" "#7F2704"
 
-Student_plot + School_plot +
-  plot_annotation(
-    title = "End-of-Grade Science Score of DeSIRE vs Non-DeSIRE Students in\nPhillips Middle School and West Edgecombe Middle School",
-    subtitle = "95% Confidence Intervals about Mean Difference in 8th and 5th Grade EOG Science Score"
+brewer.pal(4, "Greens")
+"#EDF8E9" "#BAE4B3" "#74C476" "#238B45"
+
+brewer.pal(4, "Blues")
+"#EFF3FF" "#BDD7E7" "#6BAED6" "#2171B5"
+
+ggplot(data = condPlotFac_df2) +
+  # geom_col(aes(x = Dosage, y = Probability, fill = Grade8Level),
+  #          position = position_dodge()) +
+  # geom_errorbar(aes(x = Dosage, ymin = Lower, ymax = Upper,
+  #                   group = `Grade 8 Level`, color = `Grade 8 Level`),
+  #               position = position_dodge(width = 0.5),
+  #               width = 0.5, alpha = 0.5) +
+  geom_point(aes(x = Dosage, y = Probability, color = `Grade 8 Level`),
+             position = position_dodge(width = 0.5),
+             size = 2) +
+  geom_line(aes(x = Dosage, y = Probability, group = `Grade 8 Level`, color = `Grade 8 Level`),
+            position = position_dodge(width = 0.5), linewidth = 1) +
+  # geom_ribbon(aes(x = Dosage, ymin = Lower, ymax = Upper, 
+  #                 group = Grade8Level, fill = Grade8Level),
+  #             alpha = 0.3) +
+  scale_y_continuous(limits = c(0,1), breaks = seq(0,1,0.1)) +
+  scale_color_manual(values = c("#F28F8F", "gold2", "#74C476","#6BAED6")) +
+  labs(
+    title = "Probability of Score Level on 8th Grade EOG given 5th Grade Level and Dosage",
+    subtitle = "95% Credible Interval about Expected Probability",
+    y = "Probability of 8th Grade Level",
+    x = "Number of Years in DeSIRE Program"
   ) +
-  plot_layout(ncol = 1, heights = c(1,2),
-              guides = "collect",
-              axis =  "collect") &
-  theme(legend.position = "bottom",
-        panel.grid.major.y = element_blank()) 
+  facet_wrap(vars(`Grade 5 Level`), nrow = 1, labeller = label_both) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(face = "italic", size = 14),
+    panel.grid.major.x = element_blank(),
+    axis.title = element_text(size = 14),
+    axis.text = element_text(size = 12)
+  )
+
+
+ggplot(data = condPlotFac_df2) +
+  # geom_col(aes(x = Dosage, y = Probability, fill = Grade8Level),
+  #          position = position_dodge()) +
+  # geom_errorbar(aes(x = Dosage, ymin = Lower, ymax = Upper,
+  #                   group = `Grade 8 Level`, color = `Grade 8 Level`),
+  #               position = position_dodge(width = 0.5),
+  #               width = 0.5, alpha = 0.5) +
+  geom_col(aes(x = Probability, y = `Grade 8 Level`, fill = Dosage),
+             position = position_dodge(),
+             size = 2) +
+  # geom_line(aes(x = Probability, y = `Grade 8 Level`, group = Dosage, color = Dosage),
+  #           position = position_dodge(width = 0.5), linewidth = 1) +
+  # geom_ribbon(aes(x = Dosage, ymin = Lower, ymax = Upper, 
+  #                 group = Grade8Level, fill = Grade8Level),
+  #             alpha = 0.3) +
+  #scale_y_continuous(limits = c(0,1), breaks = seq(0,1,0.1)) +
+  scale_fill_manual(values = c("#74C476", "gold2", "#F28F8F"),
+                    breaks = c("2", "1", "0"))+
+  labs(
+    title = "Probability of Score Level on 8th Grade EOG given 5th Grade Level and Dosage",
+    subtitle = "95% Credible Interval about Expected Probability",
+    y = "8th Grade Level",
+    x = "Probability of Scoring in 8th Grade Level"
+  ) +
+  facet_wrap(vars(`Grade 5 Level`), nrow = 1, labeller = label_both) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(face = "italic", size = 14),
+    panel.grid.major.x = element_blank(),
+    axis.title = element_text(size = 14),
+    axis.text = element_text(size = 12)
+  )
+
+
+ggplot(data = condPlotFac_df2) +
+  # geom_col(aes(x = Dosage, y = Probability, fill = Grade8Level),
+  #          position = position_dodge()) +
+  # geom_errorbar(aes(x = Dosage, ymin = Lower, ymax = Upper,
+  #                   group = `Grade 8 Level`, color = `Grade 8 Level`),
+  #               position = position_dodge(width = 0.5),
+  #               width = 0.5, alpha = 0.5) +
+  geom_col(aes(x = Probability, y = `Grade 8 Level`, fill = `Grade 5 Level`),
+           position = position_dodge(),
+           size = 2) +
+  # geom_line(aes(x = Probability, y = `Grade 8 Level`, group = Dosage, color = Dosage),
+  #           position = position_dodge(width = 0.5), linewidth = 1) +
+  # geom_ribbon(aes(x = Dosage, ymin = Lower, ymax = Upper, 
+  #                 group = Grade8Level, fill = Grade8Level),
+  #             alpha = 0.3) +
+  #scale_y_continuous(limits = c(0,1), breaks = seq(0,1,0.1)) +
+  scale_fill_manual(values = c("#74C476", "gold2", "#F28F8F"),
+                    breaks = c("Level 4", "Level 3", "Not Proficient"))+
+  labs(
+    title = "Probability of Score Level on 8th Grade EOG given 5th Grade Level and Dosage",
+    subtitle = "95% Credible Interval about Expected Probability",
+    y = "8th Grade Level",
+    x = "Probability of Scoring in 8th Grade Level"
+  ) +
+  facet_wrap(vars(Dosage), nrow = 1, labeller = label_both) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(face = "italic", size = 14),
+    panel.grid.major.x = element_blank(),
+    axis.title = element_text(size = 14),
+    axis.text = element_text(size = 12)
+  )
 
 
 
+
+emmeans(brmpairFinal, specs = c("dosage2", "Level_5"), type = "response")
+
+newdataobs <- expand.grid(
+  dosage2 = c("0","1","2"),
+  Level_5 = c('Not Proficient', 'Level 3', 'Level 4'),
+  ethnic = unique(EOGpaired_df$ethnic)
+)
+brmFinal_epreds <- posterior_epred(brmpairFinal, newdata = newdataobs)
+tidy_epred <- brmpairFinal |>
+  epred_draws(newdata = newdataobs)
+
+tidy_epred2 <- tidy_epred |>
+  group_by(dosage2, Level_5, .category) |>
+  summarise(
+    Prob = mean(.epred),
+    LCB = quantile(.epred, 0.025),
+    UCB = quantile(.epred, 0.975)
+  )
+tidy_epred2
+
+tidy_epred3 <- tidy_epred |>
+  group_by(dosage2, Level_5, .category) |>
+  point_interval(.epred, .interval = qi) |>
+  rename(
+    "Dosage" = dosage2,
+    "Grade5Level" = Level_5,
+    "Grade8Level" = .category,
+    "Probability" = .epred,
+    "LCB" = .lower,
+    "UCB" = .upper
+  )
+
+tidy_epred3
+
+
+
+
+## Predictions ----
+finalPreds <- posterior_predict(brmpairFinal)
+finalPreds2 <- t(finalPreds)
+
+
+
+finalPreds3 <- cbind(
+  EOGpaired_df |> select(ethnic, dosage2, Level_5),
+  finalPreds2
+)
+
+finalProbsDosage <- finalPreds3 |>
+  select(-ethnic,-dosage2, -Level_5) |>
+  summarise(n = ~count(everything(.x)))
+
+
+count1 <- apply(finalPreds2, 1, function(x){sum(x == 1)})
+count2 <- apply(finalPreds2, 1, function(x){sum(x == 2)})
+count3 <- apply(finalPreds2, 1, function(x){sum(x == 3)})
+count4 <- apply(finalPreds2, 1, function(x){sum(x == 4)})
+
+
+finalPreds3 <- EOGpaired_df |> select(ethnic, dosage2, Level_5) |>
+  mutate(
+    Count1 = count1,
+    Count2 = count2,
+    Count3 = count3,
+    Count4 = count4
+  )
+
+finalPreds4 <- ddply(finalPreds3, .(dosage2, Level_5), summarise,
+                     Count1 = sum(Count1),
+                     Count2 = sum(Count2),
+                     Count3 = sum(Count3),
+                     Count4 = sum(Count4))
+
+sum(finalPreds3$Count1)/(102*10000)
+sum(finalPreds3$Count2)/(102*10000)
+sum(finalPreds3$Count3)/(102*10000)
+sum(finalPreds3$Count4)/(102*10000)
+
+library(tidybayes)
+library(modelr)
+
+EOGpaired_df$dosage2 <- droplevels(EOGpaired_df$dosage2)
+EOGpaired_df$Level_5 <- droplevels(EOGpaired_df$Level_5)
+
+EOG_plot <- EOGpaired_df %>%
+  data_grid(dosage2, ethnic, Level_5) %>%
+  add_epred_draws(brmpairFinal, category = "Level_8") %>%
+  ggplot(aes(x = .epred, y = Level_8, color = dosage2)) +
+  #coord_cartesian(expand = FALSE) +
+  facet_grid(. ~ Level_5, switch = "x") +
+  theme_bw() +
+  #theme(strip.background = element_blank(), strip.placement = "outside") +
+  labs(
+    title = "Probability of Score Level on 8th Grade EOG given 5th Grade Level and Dosage",
+    subtitle = "95% Credible Interval about Expected Probability",
+    y = "Probability of 8th Grade Level",
+    x = "Number of Years in DeSIRE Program"
+  )
+
+EOG_plot +
+  stat_summary(fun = median, geom = "bar",
+               aes(fill = dosage2),
+               position = position_dodge(width = .95)) 
+  # stat_pointinterval(
+  #   aes(group = dosage2),
+  #   position = position_dodge(), .width = 0.95, 
+  #   color = "black", 
+  #   )
 
 
 

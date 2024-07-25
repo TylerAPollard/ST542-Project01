@@ -83,6 +83,7 @@ library(brms)
 library(posterior)
 library(bayesplot)
 library(BayesFactor)
+library(tidybayes)
 
 ## Load this package last to reduce package conflictions with dplyr
 library(tidyverse) 
