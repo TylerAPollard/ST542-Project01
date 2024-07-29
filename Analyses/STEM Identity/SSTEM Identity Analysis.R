@@ -52,7 +52,18 @@ library(readxl) # Read xlsx
 library(stringr) # Manipulate strings
 library(plyr) # Produce summary tables/data.frames
 
+## Plotting
+library(scales)
+library(RColorBrewer)
+library(patchwork)
+
+## Tables
+library(gt)
+library(gtsummary)
+
 ## Data Analysis
+library(MASS)
+library(ordinal)
 library(likert)
 library(psych)
 library(agricolae)
@@ -62,6 +73,9 @@ library(car)
 library(emmeans)
 library(betareg)
 library(caret)
+library(jtools)
+library(blorr)
+library(performance)
 
 ## Bayesian Data Analysis
 library(DescTools)
@@ -70,66 +84,173 @@ library(brms)
 library(posterior)
 library(bayesplot)
 library(BayesFactor)
-
-## Plotting
-library(patchwork)
+library(tidybayes)
 
 ## Load this package last to reduce package conflictions with dplyr
 library(tidyverse) 
 
+
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# IDENTITY ANALYSIS
+# SELF EFFICACY ANALYSIS
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 # Load SSTEM Survey Data ----
 load("Data/S-STEM/Cleaned S-STEM Survey Data.RData")
 
-# LEARNING CONSTRUCT ====================================================================================
+# 1. Calculate Construct Scores ----
 ## Filter Data ----
-Learningsurvey <- SSTEMsurvey_data |>
+SSTEMsurvey_df <- SSTEMsurvey_data |>
+  select(
+    SchoolYear,
+    Semester,
+    YearSemester,
+    School,
+    Grade,
+    Gender,
+    Gender2,
+    Race,
+    Race2,
+    str_which(colnames(SSTEMsurvey_data), pattern = "Math"),
+    str_which(colnames(SSTEMsurvey_data), pattern = "Science"),
+    str_which(colnames(SSTEMsurvey_data), pattern = "EngTech"),
+    str_which(colnames(SSTEMsurvey_data), pattern = "Learning")
+  ) #|>
+# mutate(
+#   Math_Q1 = 6 - Math_Q1,
+#   Math_Q3 = 6 - Math_Q3,
+#   Math_Q5 = 6 - Math_Q5
+# )
+
+SampleSize_data <- SSTEMsurvey_df |>
   select(
     Semester,
     YearSemester,
     School,
     Grade,
     Gender,
+    Gender2,
+    Race,
+    Race2
+  )
+
+SampleSizes <- apply(SampleSize_data, 2, table)
+SampleSizesPerc <- lapply(SampleSizes, function(x){round(x/nrow(SampleSize_data)*100, 2)})
+SampleSizes
+SampleSizesPerc
+
+#describe(mySurvey)
+
+my.keys <- list(
+  "Math" = c("-Math_Q1",
+             "Math_Q2",
+             "-Math_Q3",
+             "Math_Q4",
+             "-Math_Q5",
+             "Math_Q6",
+             "Math_Q7",
+             "Math_Q8"
+  ),
+  "Science" = c("Science_Q1",
+                "Science_Q2",
+                "Science_Q3",
+                "Science_Q4",
+                "Science_Q5",
+                "Science_Q6",
+                "Science_Q7",
+                "-Science_Q8",
+                "Science_Q9"
+  ),
+  "EngTech" = c("EngTech_Q1",
+                "EngTech_Q2",
+                "EngTech_Q3",
+                "EngTech_Q4",
+                "EngTech_Q5",
+                "EngTech_Q6",
+                "EngTech_Q7",
+                "EngTech_Q8",
+                "EngTech_Q9"
+  ),
+  "Learning" = c("Learning_Q1",
+                 "Learning_Q2",
+                 "Learning_Q3",
+                 "Learning_Q4",
+                 "Learning_Q5",
+                 "Learning_Q6",
+                 "Learning_Q7",
+                 "Learning_Q8",
+                 "Learning_Q9",
+                 "Learning_Q10",
+                 "Learning_Q11"
+  )
+)
+
+my.scales <- scoreItems(my.keys, SSTEMsurvey_df)
+my.scales
+
+my.scores <- my.scales$scores
+my.scores
+
+print(my.scales,short=FALSE)
+print(my.scales,short=TRUE)
+
+scales.ov <- scoreOverlap(my.keys,SSTEMsurvey_df)
+scales.ov
+
+
+my.scores <- my.scales$scores
+names(my.scales)
+
+
+headTail(round(my.scores,2) )
+
+describe(my.scores)
+
+pairs.panels(my.scores, pch = ".") 
+
+# 2. Clean Data ==========
+## Filter Data ----
+Learningsurvey <- SSTEMsurvey_df |>
+  select(
+    Semester,
+    YearSemester,
+    School,
+    Grade,
+    Gender,
+    Gender2,
     Race,
     Race2,
-    str_which(colnames(SSTEMsurvey_data), pattern = "Learning")
+    str_which(colnames(SSTEMsurvey_df), pattern = "Learning")
   ) 
+
+## Check Cronbach alpha of Learning Questions
+LearningAlpha <- alpha(Learningsurvey |> select(str_which(colnames(Learningsurvey), pattern = "Learning")),
+                      cumulative = FALSE, keys = my.keys$Learning)
+LearningAlpha
 
 ## Calculate Aggregate Score ----
 Learningsurvey_data <- Learningsurvey |>
   rowwise() |>
   mutate(
-    LearningScore = mean(c_across(str_which(colnames(Learningsurvey), pattern = "Learning")), na.rm = TRUE)
+    MeanLearningScore = mean(c_across(str_subset(colnames(Learningsurvey), pattern = "Learning")), na.rm = TRUE),
+    SumLearningScore = sum(c_across(str_subset(colnames(Learningsurvey), pattern = "Learning")), na.rm = TRUE)
+  ) |>
+  ungroup() |>
+  mutate(
+    LearningScore = my.scores[,4]
   ) |>
   filter(
-    complete.cases(LearningScore) 
-  ) |>
-  mutate(
-    LearningScoreScaled = (LearningScore - 1)/4
-  ) |>
-  mutate(
-    LearningScoreScaled2 = ifelse(LearningScoreScaled == 0, 0.00001, 
-                                  ifelse(LearningScoreScaled == 1, 0.99999, LearningScoreScaled))
+    complete.cases(MeanLearningScore)
   )
+
+
+hist((Learningsurvey_data$MeanLearningScore))
+plot(density(Learningsurvey_data$MeanLearningScore))
+
 hist((Learningsurvey_data$LearningScore))
 plot(density(Learningsurvey_data$LearningScore))
-hist((Learningsurvey_data$LearningScoreScaled2))
-plot(density(Learningsurvey_data$LearningScoreScaled2))
 
-### Data without Other Gender ----
-Learningsurvey_data2 <- Learningsurvey_data |>
-  filter(Gender != "Other") |>
-  mutate(Gender = droplevels(Gender))
-
-## Cronbach Alpha ----
-alpha(Learningsurvey_data |> select(str_which(colnames(Learningsurvey_data), pattern = "Learning_")),
-      cumulative = TRUE)
-
-alpha(Learningsurvey_data2 |> select(str_which(colnames(Learningsurvey_data2), pattern = "Learning_")),
-      cumulative = TRUE)
+hist((Learningsurvey_data$SumLearningScore))
+plot(density(Learningsurvey_data$SumLearningScore))
 
 ## Sample Sizes ----
 ### By Each Factor ----
@@ -139,39 +260,42 @@ table(Learningsurvey_data$Grade)
 table(Learningsurvey_data$Gender)
 table(Learningsurvey_data$Race2)
 
-table(Learningsurvey_data2$YearSemester)
-table(Learningsurvey_data2$School)
-table(Learningsurvey_data2$Grade)
-table(Learningsurvey_data2$Gender)
-table(Learningsurvey_data2$Race2)
+LearningSampleSize_data <- Learningsurvey_data |>
+  select(
+    Semester,
+    YearSemester,
+    School,
+    Grade,
+    Gender,
+    Gender2,
+    Race,
+    Race2
+  )
+
+LearningSampleSizes <- apply(LearningSampleSize_data, 2, table)
+LearningSampleSizesPerc <- lapply(LearningSampleSizes, function(x){round(x/nrow(LearningSampleSize_data)*100, 2)})
+LearningSampleSizes
+LearningSampleSizesPerc
+
+### All combinations ----
+Learning_SampleSizes_All <- ddply(Learningsurvey_data, .(School, Grade, Gender, Race2), summarise, .drop = FALSE,
+                                 n = n())
+Learning_SampleSizes_All
 
 ### Interactions ----
-#### Full data ----
-Learning_SampleSizes_YearSemesterSchool <- ddply(Learningsurvey_data, .(YearSemester, School), summarise, .drop = FALSE,
-                                                 n = n())
-Learning_SampleSizes_YearSemesterGrade <- ddply(Learningsurvey_data, .(YearSemester, Grade), summarise, .drop = FALSE,
-                                                n = n())
-Learning_SampleSizes_YearSemesterGender <- ddply(Learningsurvey_data, .(YearSemester, Gender), summarise, .drop = FALSE,
-                                                 n = n())
-Learning_SampleSizes_YearSemesterRace <- ddply(Learningsurvey_data, .(YearSemester, Race2), summarise, .drop = FALSE,
-                                               n = n())
 Learning_SampleSizes_SchoolGrade <- ddply(Learningsurvey_data, .(School, Grade), summarise, .drop = FALSE,
-                                          n = n())
+                                         n = n())
 Learning_SampleSizes_SchoolGender <- ddply(Learningsurvey_data, .(School, Gender), summarise, .drop = FALSE,
-                                           n = n())
-Learning_SampleSizes_SchoolRace <- ddply(Learningsurvey_data, .(School, Race2), summarise, .drop = FALSE,
-                                         n = n())
-Learning_SampleSizes_GradeGender <- ddply(Learningsurvey_data, .(Grade, Gender), summarise, .drop = FALSE,
                                           n = n())
-Learning_SampleSizes_GradeRace <- ddply(Learningsurvey_data, .(Grade, Race2), summarise, .drop = FALSE,
+Learning_SampleSizes_SchoolRace <- ddply(Learningsurvey_data, .(School, Race2), summarise, .drop = FALSE,
                                         n = n())
-Learning_SampleSizes_GenderRace <- ddply(Learningsurvey_data, .(Gender, Race2), summarise, .drop = FALSE,
+Learning_SampleSizes_GradeGender <- ddply(Learningsurvey_data, .(Grade, Gender), summarise, .drop = FALSE,
                                          n = n())
+Learning_SampleSizes_GradeRace <- ddply(Learningsurvey_data, .(Grade, Race2), summarise, .drop = FALSE,
+                                       n = n())
+Learning_SampleSizes_GenderRace <- ddply(Learningsurvey_data, .(Gender, Race2), summarise, .drop = FALSE,
+                                        n = n())
 
-Learning_SampleSizes_YearSemesterSchool
-Learning_SampleSizes_YearSemesterGrade
-Learning_SampleSizes_YearSemesterGender
-Learning_SampleSizes_YearSemesterRace
 Learning_SampleSizes_SchoolGrade
 Learning_SampleSizes_SchoolGender
 Learning_SampleSizes_SchoolRace
@@ -179,630 +303,348 @@ Learning_SampleSizes_GradeGender
 Learning_SampleSizes_GradeRace
 Learning_SampleSizes_GenderRace
 
-demographics <- c("YearSemester", "School", "Grade", "Gender", "Race")
-interactions <- data.frame(t(combn(demographics, 2))) 
-colnames(interactions) <- c("Var1", "Var2")
-interactions$Missing <- NA
-
-for(i in 1:nrow(interactions)){
-  var1 <- interactions$Var1[i]
-  var2 <- interactions$Var2[i]
-  dat <- paste0("Learning_SampleSizes_", var1, var2)
-  
-  temp_data <- get(dat)
-  temp_miss <- sum(temp_data$n == 0)
-  
-  interactions$Missing[i] <- temp_miss
-}
-
-#### Reduced Gender ----
-Learning_SampleSizes_YearSemesterSchool2 <- ddply(Learningsurvey_data2, .(YearSemester, School), summarise, .drop = FALSE,
-                                                  n = n())
-Learning_SampleSizes_YearSemesterGrade2 <- ddply(Learningsurvey_data2, .(YearSemester, Grade), summarise, .drop = FALSE,
-                                                 n = n())
-Learning_SampleSizes_YearSemesterGender2 <- ddply(Learningsurvey_data2, .(YearSemester, Gender), summarise, .drop = FALSE,
-                                                  n = n())
-Learning_SampleSizes_YearSemesterRace2 <- ddply(Learningsurvey_data2, .(YearSemester, Race2), summarise, .drop = FALSE,
-                                                n = n())
-Learning_SampleSizes_SchoolGrade2 <- ddply(Learningsurvey_data2, .(School, Grade), summarise, .drop = FALSE,
-                                           n = n())
-Learning_SampleSizes_SchoolGender2 <- ddply(Learningsurvey_data2, .(School, Gender), summarise, .drop = FALSE,
-                                            n = n())
-Learning_SampleSizes_SchoolRace2 <- ddply(Learningsurvey_data2, .(School, Race2), summarise, .drop = FALSE,
-                                          n = n())
-Learning_SampleSizes_GradeGender2 <- ddply(Learningsurvey_data2, .(Grade, Gender), summarise, .drop = FALSE,
-                                           n = n())
-Learning_SampleSizes_GradeRace2 <- ddply(Learningsurvey_data2, .(Grade, Race2), summarise, .drop = FALSE,
-                                         n = n())
-Learning_SampleSizes_GenderRace2 <- ddply(Learningsurvey_data2, .(Gender, Race2), summarise, .drop = FALSE,
-                                          n = n())
-
-Learning_SampleSizes_YearSemesterSchool2
-Learning_SampleSizes_YearSemesterGrade2
-Learning_SampleSizes_YearSemesterGender2
-Learning_SampleSizes_YearSemesterRace2
-Learning_SampleSizes_SchoolGrade2
-Learning_SampleSizes_SchoolGender2
-Learning_SampleSizes_SchoolRace2
-Learning_SampleSizes_GradeGender2
-Learning_SampleSizes_GradeRace2
-Learning_SampleSizes_GenderRace2
-
-demographics2 <- c("YearSemester", "School", "Grade", "Gender", "Race")
-interactions2 <- data.frame(t(combn(demographics2, 2))) 
-colnames(interactions2) <- c("Var1", "Var2")
-interactions2$Missing <- NA
-
-for(i in 1:nrow(interactions2)){
-  var1 <- interactions2$Var1[i]
-  var2 <- interactions2$Var2[i]
-  dat <- paste0("Learning_SampleSizes_", var1, var2, "2")
-  
-  temp_data <- get(dat)
-  temp_miss <- sum(temp_data$n == 0)
-  
-  interactions2$Missing[i] <- temp_miss
-}
-
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-## FIT MODELS ================
-### Full Data ================
-Learningsurvey_df <- Learningsurvey_data |>
-  select(
-    #Semester,
-    YearSemester,
-    School,
-    Grade,
-    Gender,
-    #Race,
-    Race2,
-    LearningScore
-  )
-
-Learningsurvey_df3 <- Learningsurvey_df |>
+## Manipulate data ----
+Learningsurvey_data <- Learningsurvey_data |>
   mutate(
-    across(-LearningScore, ~as.character(.x))
+    LearningScoreScaled = (LearningScore - 1)/4
+  ) |>
+  mutate(
+    LearningScoreScaled2 = ifelse(LearningScoreScaled == 0, 0.00001, 
+                                 ifelse(LearningScoreScaled == 1, 0.99999, LearningScoreScaled))
   )
 
-Learningsurvey_df2 <- Learningsurvey_data2 |>
-  select(
-    #Semester,
-    YearSemester,
-    School,
-    Grade,
-    Gender,
-    #Race,
-    Race2,
-    LearningScore
-  )
-
-hist(log(Learningsurvey_df$LearningScore))
-plot(density(log(Learningsurvey_df$LearningScore)))
-
-boxcox_model <- lm(LearningScore ~ 1, data = Learningsurvey_df)
-boxcoxLearningScore <- boxCox(boxcox_model)
-boxcoxLearningScore_lambda <- boxcoxLearningScore$x[which.max(boxcoxLearningScore$y)]
-
-ddply(Learningsurvey_df, .(School, Gender), summarise,
-      mean(LearningScore))
-ddply(Learningsurvey_df, .(School), summarise,
-      mean(LearningScore))
-ddply(Learningsurvey_df, .(Gender), summarise,
-      mean(LearningScore))
-mean(Learningsurvey_df$LearningScore)
-
-#### Normal ----
-lm1 <- glm(LearningScore ~ 
-             YearSemester
-           + School
-           + Grade
-           + Gender
-           + Race2
-           #+ School:Grade
-           #+ School:Gender
-           #+ School:Race2
-           #+ Grade:Gender
-           #+ Grade:Race2
-           + Gender:Race2,
-           data = Learningsurvey_df)
-print(lm1)
-lm1step <- step(lm1)
-
-lm2 <- glm(LearningScore ~ 
-           #  YearSemester
-           + School
-           + Grade
-           + Gender
-           #+ Race2
-           #+ School:Grade
-           #+ School:Gender
-           #+ School:Race2
-           #+ Grade:Gender
-           #+ Grade:Race2
-           #+ Gender:Race2
-           ,
-           data = Learningsurvey_df)
-print(lm2)
-summary(lm2)
-Anova(lm2, type = 2, test.statistic = "F")
-
-plot(lm2, 1)
-shapiro.test(lm2$residuals)
-durbinWatsonTest(lm2)
-
-emmeans(lm2, specs = "School", "Grade")
-emmeans(lm2, specs = "Grade")
-emmeans(lm2, specs = "Gender")
-
-lm3 <- glm(LearningScore ~ 
-             #  YearSemester
-             + School
-           #+ Grade
-           + Gender
-           #+ Race2
-           #+ School:Grade
-           #+ School:Gender
-           #+ School:Race2
-           #+ Grade:Gender
-           #+ Grade:Race2
-           #+ Gender:Race2
-           ,
-           data = Learningsurvey_df)
-print(lm3)
-summary(lm3)
-Anova(lm3, type = 2)
-anova(lm3, lm2, test = "F")
-
-
-Learningsurvey_df <- Learningsurvey_df |>
-  mutate(Int = 1)
-
-##### General Tests ----
-generalBF1 <- generalTestBF(LearningScore ~ 
-                              YearSemester
-                            + School
-                            + Grade
-                            + Gender
-                            + Race2
-                            + Int 
-                            #+ School:Grade
-                            #+ School:Gender
-                            #+ School:Race2
-                            #+ Grade:Gender
-                            #+ Grade:Race2
-                            + Gender:Race2,
-                            data = Learningsurvey_df)
-topgenM1 <- head(generalBF1)
-topgenM1
-topgenM1[1] / topgenM1[4]
-
-
-generalBF2 <- anovaBF(LearningScore ~ 
-                        YearSemester
-                      + School
-                      + Grade
-                      + Gender
-                      + Race2
-                      #+ School:Grade
-                      #+ School:Gender
-                      #+ School:Race2
-                      #+ Grade:Gender
-                      #+ Grade:Race2
-                      #+ Gender:Race2
-                      ,
-                      whichModels = "withmain",
-                      data = Learningsurvey_df)
-generalBF2
-topgenM2 <- head(generalBF2)
-topgenM2
-topgenM2[1] / topgenM2[2]
-
-##### Model 1 ----
-stanlinM1 <- stan_glm(LearningScore ~ School + Grade + Gender,
-                      data = Learningsurvey_df,
-                      #prior_intercept = normal(0,10, autoscale = FALSE), 
-                      #prior = normal(0,10,autoscale = FALSE),
-                      #prior_aux = exponential(1),
-                      sparse = FALSE
-)
-print(stanlinM1, digits = 3)
-summary(stanlinM1, digits = 3)
-
-stanlinM2 <- stan_glm(LearningScore ~ School + Gender,
-                      data = Learningsurvey_df,
-                      #prior_intercept = normal(0,10, autoscale = FALSE), 
-                      #prior = normal(0,10,autoscale = FALSE),
-                      #prior_aux = exponential(1),
-                      sparse = FALSE
-)
-print(stanlinM2, digits = 3)
-summary(stanlinM2, digits = 3)
-
-loo(stanlinM1)
-loo(stanlinM2)
-
-stanaovM1 <- stan_aov(LearningScore ~ Int + School + Gender,
-                      data = Learningsurvey_df,
-                      adapt_delta = 0.99,
-                      prior = R2(0.5))
-#op <- options(contrasts = c("contr.helmert", "contr.poly"))
-print(fit_aov)
-print(stanaovM1)
-summary(stanaovM1)
-
-stanT1 <- lmBF(LearningScore ~ School + Grade + Gender,
-               data = Learningsurvey_df)
-stanT2 <- lmBF(LearningScore ~ School + Grade + Gender, # + Race2,
-               data = Learningsurvey_df)
-
-stanT2 / stanT1
-
-prior_summary(stanlinM1)
-posterior_summary(stanlinM1)
-
-print(stanlinM1, digits = 3)
-summary(stanlinM1, digits = 3, probs = c(0.025, 0.95))
-
-fixef(stanlinM1)
-mcmc_areas(stanlinM1, pars = )
-
-emmeans(stanlinM1, specs = "Gender", adjust = "bonferroni")
-
-linM1prior_coef <- prior("normal(0,10)", class = "b")
-linM1prior_Int <- prior(normal(0,10))
-linM1prior_sd <- prior("gamma(0.1, 0.1)", class = "sigma")
-
-linM1priors <- c(linM1prior_coef, linM1prior_sd)
-linM1 <- brm(bf(LearningScore ~ School + Grade + Gender),
-             data = Learningsurvey_df,
-             family = gaussian(link = "identity"),
-             #prior = linM1priors,
-             save_pars = save_pars(all = TRUE),
-             iter = 2000, 
-             seed = 52)
-prior_summary(linM1)
-posterior_summary(linM1)
-summary(linM1, digits = 3, probs = c(0.025, 0.975))
-
-prior_summary(linM1)
-posterior_summary(linM1)
-
-linM1_draws <- posterior_predict(linM1)
-ppd_intervals_grouped(linM1_draws, group = Learningsurvey_df$School)
-ppd_stat_grouped(linM1_draws, group = Learningsurvey_df$School, stat = "mean")
-
-linM1vars <- variables(linM1)
-linM1vars2 <- str_replace_all(linM1vars, pattern = "b_", replacement = "")
-mca <- mcmc_areas(linM1, prob = 0.95, regex_pars = "b_", point_est = "mean")
-
-scode <- stancode(LearningScore ~ School + Grade + Gender, data = Learningsurvey_df)
-sdata <- standata(LearningScore ~ School + Grade + Gender, data = Learningsurvey_df)
-stanfit <- rstan::stan(model_code = scode, data = sdata)
-
-linM1B <- linM1
-linM1B$fit <- stanfit
-linM1B <- rename_pars(linM1B)
-plot(linM1B)
-
-t <- conditional_effects(linM1, 
-                         effects = "School", 
-                         conditions = expand.grid(
-                           Gender = c("Male", "Female", "Other"),
-                           Grade = c("6th", "7th", "8th")
-                         ))
-t$School
-mean(t$School |> filter(School == "West Edgecombe Middle School") |> pull(estimate__))
-mean(t$School |> filter(School == "Phillips Middle School") |> pull(estimate__))
-
-mean(t$School |> filter(School == "West Edgecombe Middle School") |> pull(lower__))
-mean(t$School |> filter(School == "Phillips Middle School") |> pull(lower__))
-
-mean(t$School |> filter(School == "West Edgecombe Middle School") |> pull(upper__))
-mean(t$School |> filter(School == "Phillips Middle School") |> pull(upper__))
-
-linM1_emmeans_School <- emmeans(linM1, specs = "School", "Grade")
-summary(linM1_emmeans_School)
-linM1_emmeans_Grade <- emmeans(linM1, specs = "Grade")
-summary(linM1_emmeans_Grade) 
-linM1_emmeans_Gender <- emmeans(linM1, specs = "Gender")
-summary(linM1_emmeans_Gender) 
-
-plot(linM1_emmeans_School)
-plot(linM1_emmeans_Grade)
-plot(linM1_emmeans_Gender)
-
-MCMCpack::mcmc
-##### Model 2 ----
-# Random Effect for Semester Year
-linM2prior_coef <- prior("normal(0,10)", class = "b")
-linM2prior_Int <- prior("normal(3,2)", class = "b", coef = "Intercept")
-linM2prior_sd <- prior("cauchy(0,10)", class = "sd")
-linM2prior_sigma <- prior("cauchy(0,10)", class = "sigma")
-
-linM2priors <- c(
-  linM2prior_coef, 
-  #linM2prior_Int,
-  linM2prior_sd,
-  linM2prior_sigma
+## Plot Data ----
+### Density ----
+parse_fact <- c(
+  "YearSemester",
+  "School",
+  "Grade",
+  "Gender2",
+  "Race2"
 )
 
-linM2 <- brm(bf(LearningScore ~ School + Gender + (1|YearSemester),
-                center = FALSE
-),
-data = Learningsurvey_df,
-family = gaussian(link = "identity"),
-prior = linM2priors,
-save_pars = save_pars(all = TRUE),
-iter = 4000, 
-control = list(adapt_delta = 0.99),
-seed = 52)
-prior_summary(linM2)
-posterior_summary(linM2)
-
-plot(linM2)
-print(linM2, digits = 3)
-summary(linM2, digits = 3)
-
-bayes_factor(linM2, linM1)
-coef(linM2)
-mcmc_areas(linM2, prob = 0.95,
-           pars = c(variables(linM2)[1:4])
-)
-
-
-linM2stanA <- stan_lmer(bf(LearningScore ~ . + (1|YearSemester),
-                           center = FALSE
-),
-data = Learningsurvey_df,
-prior = normal(0,5, autoscale = FALSE),
-prior_intercept = normal(3, 2, autoscale = TRUE),
-iter = 2000, 
-seed = 52)
-prior_summary(linM2stan)
-posterior_summary(linM2stan)
-
-summary(linM2stanA, digits = 3)
-
-t <- coef(linM2stan)
-
-mcmc_areas(linM2stan, prob = 0.95,
-           pars = rownames(posterior_summary(linM2stan))[1:4])
-
-loo(linM2)
-
-pp_check(linM1, ndraws = 100)
-pp_check(linM2, ndraws = 100)
-
-waic(linM1)
-waic(linM2)
-
-
-#### Bayesplot PPCs ----
-Y <- Learningsurvey_df$LearningScore
-Yrep <- posterior_predict(linM1)
-Yrep2 <- posterior_predict(linM2stanA)
-
-ppcL2 <- apply(Yrep, 1, function(x) quantile(x, 0.025))
-ppcU2 <- apply(Yrep, 1, function(x) quantile(x, 0.975))
-ppcMedian2 <- apply(Yrep, 1, median)
-ppcMean2 <- apply(Yrep, 1, mean)
-ppcSD2 <- apply(Yrep, 1, sd)
-
-DppcL2 <- quantile(Y, 0.025)
-DppcU2 <- quantile(Y, 0.975)
-DppcMedian2 <- median(Y)
-DppcMean2 <-mean(Y)
-DppcSD2 <- sd(Y)
-
-
-##### Overall Density ----
-ppc_density_plot <- 
-  ppc_dens_overlay(Y, Yrep[sample(1:4000, 1000, replace = FALSE), ]) +
-  labs(title = "Posterior Predictive Checks of Linear Regression on Training Data",
-       subtitle = "Simulated Data Sets Compared to Training Data") +
-  scale_x_continuous(limits = c(1,7), breaks = 1:7) +
-  scale_y_continuous(limits = c(0,1), breaks = seq(0,1,0.1)) +
-  theme_bw() +
-  legend_none() +
-  theme(
-    plot.title = element_text(hjust = 0.5, face = "bold", size = rel(1.5)),
-    plot.subtitle = element_text(size = rel(1)))
-ppc_density_plot
-
-ppc_density_plot2 <- 
-  ppc_dens_overlay(Y, Yrep2[sample(1:4000, 1000, replace = FALSE), ]) +
-  labs(title = "Posterior Predictive Checks of Linear Regression on Training Data",
-       subtitle = "Simulated Data Sets Compared to Training Data") +
-  scale_x_continuous(limits = c(1,7), breaks = 1:7) +
-  scale_y_continuous(limits = c(0,1), breaks = seq(0,1,0.1)) +
-  theme_bw() +
-  legend_none() +
-  theme(
-    plot.title = element_text(hjust = 0.5, face = "bold", size = rel(1.5)),
-    plot.subtitle = element_text(size = rel(1)))
-ppc_density_plot2
-
-### Residuals
-ppc_hist_errors_plot <- ppc_error_hist_grouped(Y, Yrep)
-
-##### Q2.5%  ----
-ppc_q2.5_plot2 <- 
-  ppc_stat(Y, Yrep, stat = function(y) quantile(y, 0.025), freq = FALSE) +
-  labs(title = "2.5% Quantile") +
-  theme_bw() +
-  legend_none()
-ppc_q2.5_plot2
-
-ppcL2dens <- density(ppcL2)
-ppcL2dens <- cbind(ppcL2dens$x, ppcL2dens$y)
-ppcL2densB <- ppcL2dens[between(ppcL2dens[,1], quantile(ppcL2, 0.025), quantile(ppcL2, 0.975)), ] 
-ppc_q2.5_plot2B <- ggplot() +
-  # geom_histogram(aes(x = ppcL2,  after_stat(density)),
-  #                fill = "#bcdcdc", color = "#99c7c7") +
-  geom_ribbon(aes(x = ppcL2densB[,1], ymin = 0, ymax = ppcL2densB[,2]),
-              fill = "#bcdcdc") +
-  geom_density(aes(x = ppcL2), color = "#99c7c7", linewidth = .75) +
-  #geom_vline(aes(xintercept = quantile(ppcL2, 0.975)), color = "#007C7C", linewidth = 2) +
-  geom_vline(aes(xintercept = DppcL2), color = "#007C7C", linewidth = 1) +
-  # geom_text(aes(label = paste0("p-value = ", round(mean(ppcL2 > DppcL2), 3))),
-  #           x = 0.84*max(ppcL2), y = max(ppcL2dens[,2]), size = 3) +
-  scale_y_continuous(expand = expansion(mult = c(0,0.05))) +
-  labs(title = paste0("2.5% Quantile", "  (p-value = ", round(mean(ppcL2 > DppcL2), 3), ")"),
-       x = NULL,
-       y = "Posterior Density") +
-  theme_bw() +
-  theme(
-    plot.title = element_text(size = rel(1)))
-ppc_q2.5_plot2B
-
-##### Q97.5%  ----
-ppc_q97.5_plot2 <- 
-  ppc_stat(Y, Yrep, stat = function(y) quantile(y, 0.975)) +
-  labs(title = "97.5% Quantile") +
-  theme_bw() +
-  legend_none()
-
-ppcU2dens <- density(ppcU2)
-ppcU2dens <- cbind(ppcU2dens$x, ppcU2dens$y)
-ppcU2densB <- ppcU2dens[between(ppcU2dens[,1], quantile(ppcU2, 0.025), quantile(ppcU2, 0.975)), ] 
-ppc_q97.5_plot2B <- ggplot() +
-  # geom_histogram(aes(x = ppcU2,  after_stat(density)),
-  #                fill = "#bcdcdc", color = "#99c7c7") +
-  geom_ribbon(aes(x = ppcU2densB[,1], ymin = 0, ymax = ppcU2densB[,2]),
-              fill = "#bcdcdc") +
-  geom_density(aes(x = ppcU2), color = "#99c7c7", linewidth = .75) +
-  #geom_vline(aes(xintercept = quantile(ppcU2, 0.975)), color = "#007C7C", linewidth = 2) +
-  geom_vline(aes(xintercept = DppcU2), color = "#007C7C", linewidth = 1) +
-  # geom_text(aes(label = paste0("p-value = ", round(mean(ppcU2 > DppcU2),3))),
-  #           x = 0.82*max(ppcU2), y = max(ppcU2dens[,2]), size = 3) +
-  scale_y_continuous(expand = expansion(mult = c(0,0.05))) +
-  labs(title = paste0("97.5% Quantile", "  (p-value = ", round(mean(ppcU2 > DppcU2), 3), ")"),
-       x = NULL,
-       y = "Posterior Density") +
-  theme_bw() +
-  theme(
-    plot.title = element_text(size = rel(1)))
-ppc_q97.5_plot2B
-
-##### Median ----
-ppc_median_plot2 <- 
-  ppc_stat(Y, Yrep, stat = "median") +
-  labs(title = "Median") +
-  theme_bw() +
-  legend_none()
-
-ppcMedian2dens <- density(ppcMedian2)
-ppcMedian2dens <- cbind(ppcMedian2dens$x, ppcMedian2dens$y)
-ppcMedian2densB <- ppcMedian2dens[between(ppcMedian2dens[,1], quantile(ppcMedian2, 0.025), quantile(ppcMedian2, 0.975)), ] 
-ppc_median_plot2B <- ggplot() +
-  # geom_histogram(aes(x = ppcMedian2,  after_stat(density)),
-  #                fill = "#bcdcdc", color = "#99c7c7") +
-  geom_ribbon(aes(x = ppcMedian2densB[,1], ymin = 0, ymax = ppcMedian2densB[,2]),
-              fill = "#bcdcdc") +
-  geom_density(aes(x = ppcMedian2), color = "#99c7c7", linewidth = .75) +
-  #geom_vline(aes(xintercept = quantile(ppcMedian2, 0.975)), color = "#007C7C", linewidth = 2) +
-  geom_vline(aes(xintercept = DppcMedian2), color = "#007C7C", linewidth = 1) +
-  # geom_text(aes(label = paste0("p-value = ", round(mean(ppcMedian2 > DppcMedian2),3))),
-  #           x = 0.72*max(ppcMedian2), y = max(ppcMedian2dens[,2]), size = 3) +
-  scale_y_continuous(expand = expansion(mult = c(0,0.05))) +
-  labs(title = paste0("Median", "  (p-value = ", round(mean(ppcMedian2 > DppcMedian2),3), ")"),
-       x = NULL,
-       y = "Posterior Density") +
-  theme_bw() +
-  theme(
-    plot.title = element_text(size = rel(1)))
-ppc_median_plot2B
-
-##### Mean ----
-ppc_mean_plot2 <- 
-  ppc_stat(Y, Yrep, stat = "mean") +
-  labs(title = "Mean") +
-  theme_bw() +
-  legend_none()
-
-ppcMean2dens <- density(ppcMean2)
-ppcMean2dens <- cbind(ppcMean2dens$x, ppcMean2dens$y)
-ppcMean2densB <- ppcMean2dens[between(ppcMean2dens[,1], quantile(ppcMean2, 0.025), quantile(ppcMean2, 0.975)), ] 
-ppc_mean_plot2B <- ggplot() +
-  # geom_histogram(aes(x = ppcMean2,  after_stat(density)),
-  #                fill = "#bcdcdc", color = "#99c7c7") +
-  geom_ribbon(aes(x = ppcMean2densB[,1], ymin = 0, ymax = ppcMean2densB[,2]),
-              fill = "#bcdcdc") +
-  geom_density(aes(x = ppcMean2), color = "#99c7c7", linewidth = .75) +
-  #geom_vline(aes(xintercept = quantile(ppcMean2, 0.975)), color = "#007C7C", linewidth = 2) +
-  geom_vline(aes(xintercept = DppcMean2), color = "#007C7C", linewidth = 1) +
-  # geom_text(aes(label = paste0("p-value = ", round(mean(ppcMean2 > DppcMean2),3))),
-  #           x = 0.96*max(ppcMean2), y = max(ppcMean2dens[,2]), size = 3) +
-  scale_y_continuous(expand = expansion(mult = c(0,0.05))) +
-  labs(title = paste0("Mean", "  (p-value = ", round(mean(ppcMedian2 > DppcMedian2),3), ")"),
-       x = NULL,
-       y = "Posterior Density") +
-  theme_bw() +
-  theme(
-    plot.title = element_text(size = rel(1)))
-ppc_mean_plot2B
-
-##### Standard Deviation ----
-ppc_sd_plot2 <- 
-  ppc_stat(Y, Yrep, stat = "sd") +
-  labs(title = "Standard Deviation") +
-  theme_bw() +
-  legend_none()
-
-ppcSD2dens <- density(ppcSD2)
-ppcSD2dens <- cbind(ppcSD2dens$x, ppcSD2dens$y)
-ppcSD2densB <- ppcSD2dens[between(ppcSD2dens[,1], quantile(ppcSD2, 0.025), quantile(ppcSD2, 0.975)), ] 
-ppc_sd_plot2B <- ggplot() +
-  # geom_histogram(aes(x = ppcSD2,  after_stat(density)),
-  #                fill = "#bcdcdc", color = "#99c7c7") +
-  geom_ribbon(aes(x = ppcSD2densB[,1], ymin = 0, ymax = ppcSD2densB[,2], linetype = "A"),
-              fill = "#bcdcdc") +
-  geom_density(aes(x = ppcSD2), color = "#99c7c7", linewidth = .75) +
-  #geom_vline(aes(xintercept = quantile(ppcSD2, 0.975)), color = "#007C7C", linewidth = 2) +
-  geom_vline(aes(xintercept = DppcSD2, linetype = "B"), color = "#99c7c7", alpha = 0, linewidth = 0.75) +
-  geom_vline(aes(xintercept = DppcSD2, linetype = "C"), color = "#007C7C", linewidth = 1) +
-  # geom_text(aes(label = paste0("p-value = ", round(mean(ppcSD2 > DppcSD2),3))),
-  #           x = 0.965*max(ppcSD2), y = max(ppcSD2dens[,2]), size = 3) +
-  scale_y_continuous(expand = expansion(mult = c(0,0.05))) +
-  labs(title = paste0("Standard Deviation", "  (p-value = ", round(mean(ppcSD2 > DppcSD2),3), ")"),
-       x = NULL,
-       y = "Posterior Density") +
-  scale_linetype_manual(
-    name = element_blank(),
-    values = c(1,1,1),
-    breaks = c("C", "B", "A"),
-    labels = c("Observed", "Posterior", "95% Credible Interval")
-  ) +
-  guides(
-    linetype = guide_legend(
-      override.aes = list(
-        alpha = c(1,1,1),
-        shape = c(NA, "--", NA)
-      )
+t.test(Learningsurvey_data$LearningScore)
+for(i in 1:length(parse_fact)){
+  fact <- parse_fact[i]
+  test <- Learningsurvey_data |>
+    group_by(!!(sym(fact))) |>
+    summarise(
+      Mean = mean(LearningScore),
+      SE = t.test(LearningScore, var.equal = FALSE)$stderr,
+      LCB = t.test(LearningScore, var.equal = FALSE)$conf.int[1],
+      UCB = t.test(LearningScore, var.equal = FALSE)$conf.int[2]
     )
-  ) +
-  theme_bw() +
-  theme(
-    plot.title = element_text(size = rel(1)))
-ppc_sd_plot2B
-ppc_legend2b <- ggpubr::get_legend(ppc_sd_plot2B)
+  print(test)
+}
 
-#### Combination Plot ----
-ppc_lay2 <- rbind(c(NA,NA, rep(1,8),NA, NA),
-                  c(rep(2,4),rep(3,4),rep(4,4)),
-                  c(NA, NA, rep(5,4), rep(6,6))
-)
-
-ppcComb_plot <- bayesplot_grid(
-  plots = list(
-    ppc_density_plot,
-    ppc_q2.5_plot2B,
-    ppc_median_plot2B,
-    ppc_q97.5_plot2B,
-    ppc_mean_plot2B,
-    ppc_sd_plot2B),
-  grid_args = list(
-    layout_matrix = ppc_lay2
+Learningsurvey_data |>
+  group_by(Gender2, Race2) |>
+  summarise(
+    Mean = mean(LearningScore),
+    SE = t.test(LearningScore, var.equal = FALSE)$stderr,
+    LCB = t.test(LearningScore, var.equal = FALSE)$conf.int[1],
+    UCB = t.test(LearningScore, var.equal = FALSE)$conf.int[2]
   )
+
+fact_plots <- list()
+for(i in 1:length(parse_fact)){
+  fact <- parse_fact[i]
+  fact_plot <- ggplot(data = Learningsurvey_data) +
+    geom_histogram(aes(x = LearningScore, after_stat(density), fill = !!sym(fact)),
+                   binwidth = 0.25,
+                   position = position_dodge()) +
+    geom_density(aes(x = LearningScore)) +
+    facet_wrap(vars(!!sym(fact))) +
+    theme_bw() +
+    theme(
+      legend.position = "bottom"
+    )
+  fact_plots[[i]] <- fact_plot
+}
+
+cowplot::plot_grid(plotlist = fact_plots, ncol = 2)
+
+
+### Survey Distribution Barplots----
+SSTEM_Learning_df <- data.frame(Learningsurvey_data |> 
+                                 select(str_subset(colnames(Learningsurvey_data), pattern = "Learning_")))
+SSTEM_Learning_df <- SSTEM_Learning_df |>
+  mutate(
+    across(everything(), 
+           ~ factor(.x, levels = c(1,2,3,4,5), ordered = TRUE))
+  )
+
+SSTEM_Learning_labels <- str_subset(SSTEMsurvey_questions, pattern = "Learning - ")
+SSTEM_Learning_labels <- str_replace(SSTEM_Learning_labels, pattern = "Learning - ", replacement = "")
+colnames(SSTEM_Learning_df) <- SSTEM_Learning_labels
+
+#### No Grouping ----
+SSTEMlikertLearning <- likert(SSTEM_Learning_df)
+plot(SSTEMlikertLearning) +
+  labs(title = "Learning items",
+       subtitle = "Ordered by positive response percentage")
+
+#### Grouping ----
+groupingColumn <- "Race2"
+mathGrouping <- Learningsurvey_data |> pull(groupingColumn)
+SSTEMlikertLearning <- likert(SSTEM_Learning_df, grouping = mathGrouping)
+plot(SSTEMlikertLearning) +
+  labs(title = paste0("Learning items parsed by ", groupingColumn),
+       subtitle = "Ordered by positive response percentage")
+
+# 3. Linear Regression ----
+## Frequentist ----
+### No Random Effects ----
+#### Model 1 ----
+linM1 <- lm(data = Learningsurvey_data,
+            LearningScore ~ School + Grade + Gender2 + Race2 + Gender2:Race2
 )
-ppcComb_plot
+summary(linM1)
+step(linM1, direction = "both")
+
+#### Model 2 ----
+linM2 <- lm(data = Learningsurvey_data,
+            LearningScore ~ School + Gender2
+)
+summary(linM2)
+
+emmeans(linM2, specs = "School")
+
+### Table Report ----
+Learning_reg_sum <- linM2 |>
+  tbl_regression(
+    conf.level = 0.95,
+    intercept = TRUE
+  ) |>
+  # add_global_p(type = 2, #test.statistic = "LR",
+  #              keep = FALSE) |>
+  add_n(location = c("level")) |> # add number of obs
+  # add_significance_stars(pattern = "{p.value}{stars}",
+  #                        thresholds = c(0.001, 0.01, 0.1),
+  #                        hide_ci = FALSE,
+  #                        hide_p = FALSE) |>
+  # add_glance_source_note(
+  # ) |>
+  # # Format
+  # bold_p(t = 0.05) |> 
+  italicize_levels() |>
+  # Titles
+  modify_caption("**Model Summary for Learning Self-Efficacy**") |>
+  modify_header(label = "**Variable**") |>
+  modify_column_hide(p.value) |>
+  modify_footnote(ci = "CI = Credible Interval") |>
+  as_gt() |>
+  cols_label(estimate = md("$$\beta$$"))
+
+Learning_reg_sum
+show_header_names(Learning_reg_sum)
+
+# Check assumptions
+# Linearity
+par(mfrow = c(2,2))
+plot(linM2)
+# Normality
+shapiro.test(linM2$residuals)
+# Independence
+DurbinWatsonTest(linM2)
+# Constant Variance
+ncvTest(linM2)
+
+### With Random Effects ----
+linR1 <- lmerTest::lmer(
+  LearningScore ~ School + Grade + Gender2 + Race2 + Gender2:Race2 + (1|YearSemester),
+  data = Learningsurvey_data
+)
+lmerTest::step(linR1)
+
+## Bayesian ----
+### General Bayes ----
+blinGen <- generalTestBF(
+  LearningScore ~ School + Grade + Gender2 + Race2 + Gender2:Race2 + YearSemester,
+  data = Learningsurvey_data, 
+  whichRandom = "YearSemester"
+)
+sort(blinGen)
+
+blinGen2 <- generalTestBF(
+  LearningScore ~ School + Grade + Gender2 + Race2 + Gender2:Race2 + YearSemester,
+  data = Learningsurvey_data
+)
+sort(blinGen2)
+
+### Model 1 ----
+blinM1NULL <- brm(
+  LearningScore ~ 1,
+  data = Learningsurvey_data,
+  family = gaussian(),
+  seed = 52,
+  save_pars = save_pars(all = TRUE),
+  control = list(adapt_delta = 0.95)
+)
+
+blinM1School <- brm(
+  LearningScore ~ School,
+  data = Learningsurvey_data,
+  family = gaussian(),
+  seed = 52,
+  save_pars = save_pars(all = TRUE),
+  control = list(adapt_delta = 0.95)
+)
+
+blinM1Gender <- brm(
+  LearningScore ~ Gender2,
+  data = Learningsurvey_data,
+  family = gaussian(),
+  seed = 52,
+  save_pars = save_pars(all = TRUE),
+  control = list(adapt_delta = 0.95)
+)
+
+
+blinM1 <- brm(
+  LearningScore ~ School + Gender2,
+  data = Learningsurvey_data,
+  family = gaussian(),
+  seed = 52,
+  prior = c(prior(normal(0,10), class = b),
+            prior(inv_gamma(0.1, 0.1), class = sigma)),
+  save_pars = save_pars(all = TRUE),
+  control = list(adapt_delta = 0.95)
+)
+prior_summary(blinM1)
+get_variables(blinM1)
+blinPostSum <- posterior_summary(blinM1, variable = get_variables(blinM1)[1:4])
+blinPostSum <- data.frame(blinPostSum)
+plot(blinM1)
+print(blinM1, digits = 4)
+summary(blinM1, digits = 4)
+performance::check_distribution(blinM1)
+performance::check_outliers(blinM1)
+performance::check_heteroskedasticity(blinM1)
+performance_rmse(blinM1)
+
+pp_check(blinM1, ndraws = 82)
+
+blinPreds <- posterior_predict(blinM1)
+blinEPreds <- posterior_epred(blinM1)
+blinDraws <- as_draws_df(blinM1)
+blinLinPred <- posterior_linpred(blinM1)
+
+MCMC_data <- mcmc_areas_data(blinM1, pars = get_variables(blinM1)[1:3], prob = 0.95)
+mcmc_areas(blinM1, pars = get_variables(blinM1)[1:3], prob = 0.95) +
+  theme_bw()
+
+summary(linM2)
+post_prob(blinM1, blinM1NULL)
+post_prob(blinM1, blinM1School)
+post_prob(blinM1, blinM1Gender)
+
+mean(blinDraws$b_SchoolPhillipsMiddleSchool > 0)
+mean(blinDraws$b_Gender2NotMale > 0)
+
+blinM1 |> 
+  emmeans(~ School,
+          at = list(Gender2 = "Male"),
+          epred = TRUE)
+
+blinM1 |> 
+  emmeans(~ School,
+          at = list(Gender2 = "Not Male"),
+          epred = TRUE)
+
+blinEMM_Learning_School <- emmeans(blinM1, specs = c("School"), epred = TRUE)
+blinEMM_Learning_SchoolSum <- summary(blinEMM_School, point.est = "mean", digits = 3) |>
+  mutate(
+    School = c("West Edgecombe\nMiddle School", "Phillips\nMiddle School")
+  ) |>
+  rename(
+    Mean = emmean,
+    LCB = lower.HPD,
+    UCB = upper.HPD
+  )
+
+blinM1EMM_School2 <- blinM1 |>
+  emmeans(~School) |>
+  gather_emmeans_draws() |>
+  mean_hdi()
+blinM1EMM_School2
+
+blinEMM_Learning_Gender2 <- emmeans(blinM1, specs = c("Gender2"), epred = TRUE)
+blinEMM_Learning_Gender2Sum <- summary(blinEMM_Gender2, point.est = "mean") |>
+  rename(
+    Mean = emmean,
+    LCB = lower.HPD,
+    UCB = upper.HPD
+  )
+
+blinM1EMM_Gender2 <- blinM1 |>
+  emmeans(~Gender2) |>
+  gather_emmeans_draws() |>
+  mean_hdi()
+blinM1EMM_Gender2
+
+conditional_effects(blinM1)
+
+blinM1Learning <- blinM1
+blinPostSumLearning <- blinPostSum
+save(Learningsurvey_data,
+     blinM1Learning,
+     blinPostSumLearning,
+     blinEMM_Learning_SchoolSum,
+     blinEMM_Learning_Gender2Sum,
+     file = "Analyses/STEM Self-Efficacy/Learning Data.RData")
+
+
+
+Learning_School_plot <- ggplot(data = blinEMM_Learning_SchoolSum) +
+  geom_errorbarh(aes(xmin = LCB, xmax = UCB, y = School),
+                 color = "dodgerblue2", height = 0.5) +
+  geom_point(aes(x = Mean, y = School),
+             color = "dodgerblue2", size = 3) +
+  scale_x_continuous(limits = c(1, 5), 
+                     breaks = seq(1,5, by = 1),
+                     minor_breaks = seq(1,5, by = 0.25)) +
+  scale_y_discrete(name = "School",
+                   limits = rev(blinEMM_Learning_SchoolSum$School)) +
+  labs(x = "Mean Engineering and Technology Construct Score") +
+  theme_bw()
+Learning_School_plot
+
+
+Learning_Gender_plot <- ggplot(data = blinEMM_Learning_Gender2Sum) +
+  geom_errorbarh(aes(xmin = LCB, xmax = UCB, y = Gender2),
+                 color = "dodgerblue4", height = 0.5) +
+  geom_point(aes(x = Mean, y = Gender2),
+             color = "dodgerblue4", size = 3) +
+  scale_x_continuous(limits = c(1, 5), 
+                     breaks = seq(1,5, by = 1),
+                     minor_breaks = seq(1,5, by = 0.25)) +
+  scale_y_discrete(name = "Gender",
+                   limits = rev(blinEMM_Learning_Gender2Sum$Gender2)) +
+  labs(x = "Mean Engineering and Technology Construct Score") +
+  theme_bw()
+Learning_Gender_plot
+
+Learning_School_plot / Learning_Gender_plot +
+  plot_layout(
+    axes = "collect_x"
+  ) +
+  plot_annotation(
+    title = "S-STEM Engineering and Technology Construct Score\nby School and Gender",
+    subtitle = "95% Credible Interval about Expected Marginal Mean",
+    theme = theme(
+      plot.title.position = "plot",
+      plot.title = element_text(face = "bold"),
+      plot.subtitle = element_text(face = "italic")
+    )
+  ) &
+  theme(
+    plot.title = element_text(size = 16),
+    plot.subtitle = element_text(size = 14),
+    axis.title = element_text(size = 12),
+    axis.text = element_text(size = 10),
+    panel.grid.major.y = element_blank()
+  )
+
+
+

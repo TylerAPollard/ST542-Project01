@@ -75,6 +75,7 @@ library(betareg)
 library(caret)
 library(jtools)
 library(blorr)
+library(performance)
 
 ## Bayesian Data Analysis
 library(DescTools)
@@ -113,12 +114,18 @@ SSTEMsurvey_df <- SSTEMsurvey_data |>
     str_which(colnames(SSTEMsurvey_data), pattern = "Science"),
     str_which(colnames(SSTEMsurvey_data), pattern = "EngTech"),
     str_which(colnames(SSTEMsurvey_data), pattern = "Learning")
-  ) #|>
-# mutate(
-#   Math_Q1 = 6 - Math_Q1,
-#   Math_Q3 = 6 - Math_Q3,
-#   Math_Q5 = 6 - Math_Q5
-# )
+  ) |>
+  rowwise() |>
+  mutate(
+    MeanMathScore = mean(c_across(str_subset(colnames(SSTEMsurvey_data), pattern = "Math")), na.rm = TRUE),
+    MeanScienceScore = mean(c_across(str_subset(colnames(SSTEMsurvey_data), pattern = "Science")), na.rm = TRUE),
+    MeanEngTechScore = mean(c_across(str_subset(colnames(SSTEMsurvey_data), pattern = "EngTech")), na.rm = TRUE),
+    MeanLearningScore = mean(c_across(str_subset(colnames(SSTEMsurvey_data), pattern = "Learning")), na.rm = TRUE)
+  ) |>
+  ungroup() |>
+  filter(
+    complete.cases(MeanEngTechScore)
+  )
 
 SampleSize_data <- SSTEMsurvey_df |>
   select(
@@ -206,9 +213,9 @@ describe(my.scores)
 
 pairs.panels(my.scores, pch = ".") 
 
-# MATH CONSTRUCT ====================================================================================
+# 2. Clean Data ==========
 ## Filter Data ----
-Mathsurvey <- SSTEMsurvey_df |>
+EngTechsurvey <- SSTEMsurvey_df |>
   select(
     Semester,
     YearSemester,
@@ -218,634 +225,8 @@ Mathsurvey <- SSTEMsurvey_df |>
     Gender2,
     Race,
     Race2,
-    str_which(colnames(SSTEMsurvey_df), pattern = "Math")
-  ) 
-
-## Check Cronbach alpha of Math Questions
-MathAlpha <- alpha(Mathsurvey |> select(str_which(colnames(Mathsurvey), pattern = "Math")),
-                   cumulative = FALSE, keys = my.keys$Math)
-MathAlpha
-
-## Calculate Aggregate Score ----
-Mathsurvey_data <- Mathsurvey |>
-  mutate(
-    Math_Q1 = 6 - Math_Q1,
-    Math_Q3 = 6 - Math_Q3,
-    Math_Q5 = 6 - Math_Q5
-  ) |>
-  rowwise() |>
-  mutate(
-    MeanMathScore = mean(c_across(str_subset(colnames(Mathsurvey), pattern = "Math")), na.rm = TRUE),
-    SumMathScore = sum(c_across(str_subset(colnames(Mathsurvey), pattern = "Math")), na.rm = TRUE)
-  ) |>
-  ungroup() |>
-  mutate(
-    MathScore = my.scores[,1]
-  ) |>
-  filter(
-    complete.cases(MeanMathScore)
-  )
-
-
-hist((Mathsurvey_data$MeanMathScore))
-plot(density(Mathsurvey_data$MeanMathScore))
-
-hist((Mathsurvey_data$MathScore))
-plot(density(Mathsurvey_data$MathScore))
-
-hist((Mathsurvey_data$SumMathScore))
-plot(density(Mathsurvey_data$SumMathScore))
-
-## Sample Sizes ----
-### By Each Factor ----
-table(Mathsurvey_data$YearSemester)
-table(Mathsurvey_data$School)
-table(Mathsurvey_data$Grade)
-table(Mathsurvey_data$Gender)
-table(Mathsurvey_data$Race2)
-
-MathSampleSize_data <- Mathsurvey_data |>
-  select(
-    Semester,
-    YearSemester,
-    School,
-    Grade,
-    Gender,
-    Gender2,
-    Race,
-    Race2
-  )
-
-MathSampleSizes <- apply(MathSampleSize_data, 2, table)
-MathSampleSizesPerc <- lapply(MathSampleSizes, function(x){round(x/nrow(MathSampleSize_data)*100, 2)})
-MathSampleSizes
-MathSampleSizesPerc
-
-### All combinations ----
-Math_SampleSizes_All <- ddply(Mathsurvey_data, .(School, Grade, Gender, Race2), summarise, .drop = FALSE,
-                              n = n())
-Math_SampleSizes_All
-
-### Interactions ----
-Math_SampleSizes_SchoolGrade <- ddply(Mathsurvey_data, .(School, Grade), summarise, .drop = FALSE,
-                                      n = n())
-Math_SampleSizes_SchoolGender <- ddply(Mathsurvey_data, .(School, Gender), summarise, .drop = FALSE,
-                                       n = n())
-Math_SampleSizes_SchoolRace <- ddply(Mathsurvey_data, .(School, Race2), summarise, .drop = FALSE,
-                                     n = n())
-Math_SampleSizes_GradeGender <- ddply(Mathsurvey_data, .(Grade, Gender), summarise, .drop = FALSE,
-                                      n = n())
-Math_SampleSizes_GradeRace <- ddply(Mathsurvey_data, .(Grade, Race2), summarise, .drop = FALSE,
-                                    n = n())
-Math_SampleSizes_GenderRace <- ddply(Mathsurvey_data, .(Gender, Race2), summarise, .drop = FALSE,
-                                     n = n())
-
-Math_SampleSizes_SchoolGrade
-Math_SampleSizes_SchoolGender
-Math_SampleSizes_SchoolRace
-Math_SampleSizes_GradeGender
-Math_SampleSizes_GradeRace
-Math_SampleSizes_GenderRace
-
-## Manipulate data ----
-Mathsurvey_data <- Mathsurvey_data |>
-  mutate(
-    MathScoreScaled = (MathScore - 1)/4
-  ) |>
-  mutate(
-    MathScoreScaled2 = ifelse(MathScoreScaled == 0, 0.00001, 
-                              ifelse(MathScoreScaled == 1, 0.99999, MathScoreScaled))
-  )
-
-
-## Plot Data ----
-### Density ----
-parse_fact <- c(
-  #"School"#,
-  #"Grade"#,
-  #"Gender"#,
-  "Race2"
-)
-ggplot(data = Mathsurvey_data) +
-  geom_histogram(aes(x = MathScore, after_stat(density), fill = !!sym(parse_fact)
-  ),
-  binwidth = 0.25,
-  position = position_dodge()) +
-  geom_density(aes(x = MathScore
-  )) +
-  facet_wrap(vars(!!sym(parse_fact))) +
-  theme_bw() +
-  theme(
-    legend.position = "bottom"
-  )
-
-
-### Survey Distribution Barplots----
-SSTEM_Math_df <- data.frame(Mathsurvey_data |> 
-                              select(str_subset(colnames(Mathsurvey_data), pattern = "Math_")))
-SSTEM_Math_df <- SSTEM_Math_df |>
-  mutate(
-    across(everything(), 
-           ~ factor(.x, levels = c(1,2,3,4,5), ordered = TRUE))
-  )
-
-SSTEM_Math_labels <- str_subset(SSTEMsurvey_questions, pattern = "Math - ")
-SSTEM_Math_labels <- str_replace(SSTEM_Math_labels, pattern = "Math - ", replacement = "")
-colnames(SSTEM_Math_df) <- SSTEM_Math_labels
-
-#### No Grouping ----
-SSTEMlikertMath <- likert(SSTEM_Math_df)
-plot(SSTEMlikertMath) +
-  labs(title = "Math items",
-       subtitle = "Ordered by positive response percentage")
-
-#### Grouping ----
-groupingColumn <- "Race2"
-mathGrouping <- Mathsurvey_data |> pull(groupingColumn)
-SSTEMlikertMath <- likert(SSTEM_Math_df, grouping = mathGrouping)
-plot(SSTEMlikertMath) +
-  labs(title = paste0("Math items parsed by ", groupingColumn),
-       subtitle = "Ordered by positive response percentage")
-
-## LINEAR REGRESSION ----
-### Model 1 ----
-linM1 <- lmer(data = Mathsurvey_data,
-              MathScore ~ 
-                Gender2
-              + Race2
-              + Gender2:Race2
-              + (1|YearSemester) 
-              + (1|YearSemester:School)
-              + (1|YearSemester:School:Grade)
-)
-linM2 <- lmer(data = Mathsurvey_data,
-              MathScore ~ 
-                Gender2
-              + Race2
-              + Gender2:Race2
-              + (1|YearSemester) 
-              #+ (1|YearSemester:School)
-              + (1|YearSemester:School:Grade)
-)
-anova(linM2, linM1)
-summary(linM1)
-vif(linM1, type = "terms")
-vif(linM1, type = "predictor")
-step(linM1, direction = "both")
-drop1(linM1, test = "Chisq")
-Anova(linM1, type = 3, test.statistic = "F")
-
-# Check assumptions
-plot(linM1)
-shapiro.test(linM1$residuals)
-DurbinWatsonTest(linM1)
-ncvTest(linM1)
-
-### Model 2 ----
-linM2 <- lm(data = Mathsurvey_data,
-            MathScore ~ 
-              Gender2
-)
-summary(linM2)
-Anova(linM2, type = 2, test.statistic = "F")
-
-plot(linM2)
-shapiro.test(linM2$residuals)
-DurbinWatsonTest(linM2)
-ncvTest(linM2)
-
-emmeans(linM2, specs = "Gender2")
-
-## BETA REGRESSION ----
-### Frequentist ----
-#### Model 1 ----
-set.seed(52)
-betaM1 <- betareg(data = Mathsurvey_data,
-                  MathScoreScaled2 ~ 
-                    School 
-                  + Grade 
-                  + Gender2
-                  + Race2 
-                  + Gender2:Race2, 
-)
-betaM1_sum <- summary(betaM1, type = "pearson", phi = NULL)
-betaM1_sum
-Anova(betaM1, type = 3)
-vif(betaM1)
-
-###### Diagnostic Checks ----
-plot(betaM1)
-
-###### Expected Marginal Means ----
-betaM1_emms <- data.frame(emmeans(betaM1, specs = c("School"), by = c("Grade"), level = 0.95))
-betaM1_emms2 <- betaM1_emms |> 
-  select(
-    "School", 
-    "Grade",
-    "emmean",
-    "asymp.LCL",
-    "asymp.UCL"
-  ) |>
-  group_by(School, Grade) |>
-  summarize(
-    across(everything(), ~.x*4+1)
-  )
-betaM1_emms2
-
-###### Plot Effects ----
-betaM1_plot <- ggplot(data = betaM1_emms2) +
-  geom_errorbarh(aes(xmin = asymp.LCL, xmax = asymp.UCL, y = Grade, color = School),
-                 height = 0.5, position = position_dodge(width = 0.5)) + 
-  geom_point(aes(x = emmean, y = Grade, color = School),
-             position = position_dodge(width = 0.5)) +
-  scale_x_continuous(limits = c(1,6), breaks = 1:6) +
-  labs(
-    title = "S-STEM Self-Efficacy Math Construct Score by\nGrade and School",
-    subtitle = "95% Confidence Interval about Mean Math Construct Score",
-    x = "Math Construct Score"
-  ) +
-  theme_bw() +
-  theme(
-    panel.grid.major.y = element_blank(),
-    panel.grid.minor.x = element_blank(),
-    title = element_text(size = rel(1.25)),
-    axis.title = element_text(size = rel(1.1)),
-    axis.text = element_text(size = rel(1.1)),
-    legend.text = element_text(size = rel(1))
-  )
-betaM1_plot
-mlm2b_plot
-
-### Bayesian ----
-#### Model 1 ----
-set.seed(52)
-bbetaM1 <- stan_betareg(data = Mathsurvey_data2,
-                        MathScoreScaled2 ~ 
-                          School 
-                        + Grade 
-                        + Gender
-                        + Race2 
-                        #+ School:Grade 
-                        + School:Gender 
-                        #+ School:Race 
-                        + Grade:Gender
-                        #+ Grade:Race
-                        #+ Gender:Race
-                        ,
-)
-bbetaM1_sum <- summary(bbetaM1)
-bbetaM1_sum
-fixef(bbetaM1)
-
-###### Diagnostic Checks ----
-pp_check(bbetaM1, nreps = 1000) + xlim(c(-1,2))
-bayes_R2(bbetaM1)
-
-
-###### Expected Marginal Means ----
-bbetaM1_emms <- data.frame(emmeans(bbetaM1, 
-                                   specs = c("School"), 
-                                   by = c("Grade"), 
-                                   level = 0.95,
-                                   epred = TRUE))
-bbetaM1_emms
-bbetaM1_emms2 <- bbetaM1_emms |> 
-  select(
-    "School", 
-    "Grade",
-    "emmean",
-    "lower.HPD",
-    "upper.HPD"
-  ) |>
-  group_by(School, Grade) |>
-  summarize(
-    across(everything(), ~inv_logit_scaled(.x, lb = 1, ub = 5))
-  )
-bbetaM1_emms2
-betaM1_emms2
-
-###### Plot Effects ----
-bbetaM1_plot <- ggplot(data = bbetaM1_emms2) +
-  geom_errorbarh(aes(xmin = lower.HPD, xmax = upper.HPD, y = Grade, color = School),
-                 height = 0.5, position = position_dodge(width = 0.5)) + 
-  geom_point(aes(x = emmean, y = Grade, color = School),
-             position = position_dodge(width = 0.5)) +
-  scale_x_continuous(limits = c(1,6), breaks = 1:6) +
-  labs(
-    title = "S-STEM Self-Efficacy Math Construct Score by\nGrade and School",
-    subtitle = "95% Confidence Interval about Mean Math Construct Score",
-    x = "Math Construct Score"
-  ) +
-  theme_bw() +
-  theme(
-    panel.grid.major.y = element_blank(),
-    panel.grid.minor.x = element_blank(),
-    title = element_text(size = rel(1.25)),
-    axis.title = element_text(size = rel(1.1)),
-    axis.text = element_text(size = rel(1.1)),
-    legend.text = element_text(size = rel(1))
-  )
-bbetaM1_plot
-
-#### Model 2 ----
-generalBayes <- generalTestBF(data = Mathsurvey_data2,
-                              MathScoreScaled2 ~ 
-                                Semester
-                              + School 
-                              + Grade 
-                              + Gender
-                              + Race2 
-                              + School:Grade 
-                              + School:Gender 
-                              + School:Race2 
-                              + Grade:Gender
-                              + Grade:Race2
-                              + Gender:Race2
-)
-sort(generalBayes)
-
-bbetaM2 <- brm(data = Mathsurvey_data2,
-               MathScoreScaled2 ~ 
-                 School 
-               + Grade 
-               + Gender
-               + Race2 
-               + School:Grade 
-               + School:Gender 
-               + School:Race2 
-               + Grade:Gender
-               + Grade:Race
-               + Gender:Race
-               , 
-               family = Beta(),
-               seed = 52,
-               save_pars = save_pars(all = TRUE) 
-)
-
-bbetaM2_sum <- summary(bbetaM2)
-bbetaM2_sum
-fixef(bbetaM2)
-
-###### Diagnostic Checks ----
-pp_check(bbetaM2, ndraws = 80)
-pp_check(bbetaM2, ndraws = 1000,
-         type = "dens_overlay_grouped",
-         group = "Gender")
-
-bayes_R2(bbetaM2)
-
-bbetaM3 <- brm(data = Mathsurvey_data2,
-               MathScoreScaled2 ~ 
-                 #  School 
-                 #+ Grade 
-                 + Gender
-               #+ Race2 
-               #+ School:Grade 
-               #+ School:Gender 
-               #+ School:Race2 
-               #+ Grade:Gender
-               #+ Grade:Race
-               #+ Gender:Race
-               , 
-               family = Beta(),
-               seed = 52,
-               save_pars = save_pars(all = TRUE) 
-)
-
-bbetaM3_sum <- summary(bbetaM3)
-bbetaM3_sum
-fixef(bbetaM3)
-
-###### Diagnostic Checks ----
-pp_check(bbetaM3, ndraws = 80)
-pp_check(bbetaM3, ndraws = 1000,
-         type = "dens_overlay_grouped",
-         group = "Gender")
-
-bayes_R2(bbetaM3)
-
-###### Expected Marginal Means ----
-bbetaM2_emms <- data.frame(emmeans(bbetaM2, 
-                                   specs = c("School"), 
-                                   by = c("Grade"), 
-                                   level = 0.95,
-                                   #epred = TRUE
-))
-bbetaM2_emms
-bbetaM2_emms2 <- bbetaM2_emms |> 
-  select(
-    "School", 
-    "Grade",
-    "emmean",
-    "lower.HPD",
-    "upper.HPD"
-  ) |>
-  group_by(School, Grade) |>
-  summarize(
-    across(everything(), ~inv_logit_scaled(.x, lb = 1, ub = 5))
-  )
-bbetaM2_emms2
-
-###### Plot Effects ----
-bbetaM2_plot <- ggplot(data = bbetaM2_emms2) +
-  geom_errorbarh(aes(xmin = lower.HPD, xmax = upper.HPD, y = Grade, color = School),
-                 height = 0.5, position = position_dodge(width = 0.5)) + 
-  geom_point(aes(x = emmean, y = Grade, color = School),
-             position = position_dodge(width = 0.5)) +
-  scale_x_continuous(limits = c(1,6), breaks = 1:6) +
-  labs(
-    title = "S-STEM Self-Efficacy Math Construct Score by\nGrade and School",
-    subtitle = "95% Confidence Interval about Mean Math Construct Score",
-    x = "Math Construct Score"
-  ) +
-  theme_bw() +
-  theme(
-    panel.grid.major.y = element_blank(),
-    panel.grid.minor.x = element_blank(),
-    title = element_text(size = rel(1.25)),
-    axis.title = element_text(size = rel(1.1)),
-    axis.text = element_text(size = rel(1.1)),
-    legend.text = element_text(size = rel(1))
-  )
-bbetaM2_plot
-
-bbetaM2_fitted <- data.frame(fitted(bbetaM2, scale = "response"))
-bbetaM2_residuals <- data.frame(residuals(bbetaM2))
-
-
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# SCIENCE CONSTRUCT ====================================================================================
-## Filter Data ----
-Sciencesurvey <- mySurvey |>
-  select(
-    Semester,
-    YearSemester,
-    School,
-    Grade,
-    Gender,
-    Gender2,
-    Race,
-    Race2,
-    str_which(colnames(mySurvey), pattern = "Science")
-  ) 
-
-## Check Cronbach alpha of Science Questions
-ScienceAlpha <- alpha(Sciencesurvey |> select(str_which(colnames(Sciencesurvey), pattern = "Science")),
-                      cumulative = FALSE, keys = my.keys$Science)
-ScienceAlpha
-
-## Calculate Aggregate Score ----
-Sciencesurvey_data <- Sciencesurvey |>
-  rowwise() |>
-  mutate(
-    MeanScienceScore = mean(c_across(str_subset(colnames(Sciencesurvey), pattern = "Science")), na.rm = TRUE),
-    SumScienceScore = sum(c_across(str_subset(colnames(Sciencesurvey), pattern = "Science")), na.rm = TRUE)
-  ) |>
-  ungroup() |>
-  mutate(
-    ScienceScore = my.scores[,2]
-  ) |>
-  filter(
-    complete.cases(MeanScienceScore)
-  )
-
-
-hist((Sciencesurvey_data$MeanScienceScore))
-plot(density(Sciencesurvey_data$MeanScienceScore))
-
-hist((Sciencesurvey_data$ScienceScore))
-plot(density(Sciencesurvey_data$ScienceScore))
-
-hist((Sciencesurvey_data$SumScienceScore))
-plot(density(Sciencesurvey_data$SumScienceScore))
-
-## Sample Sizes ----
-### By Each Factor ----
-table(Sciencesurvey_data$YearSemester)
-table(Sciencesurvey_data$School)
-table(Sciencesurvey_data$Grade)
-table(Sciencesurvey_data$Gender)
-table(Sciencesurvey_data$Race2)
-
-ScienceSampleSize_data <- Sciencesurvey_data |>
-  select(
-    Semester,
-    YearSemester,
-    School,
-    Grade,
-    Gender,
-    Gender2,
-    Race,
-    Race2
-  )
-
-ScienceSampleSizes <- apply(ScienceSampleSize_data, 2, table)
-ScienceSampleSizesPerc <- lapply(ScienceSampleSizes, function(x){round(x/nrow(ScienceSampleSize_data)*100, 2)})
-ScienceSampleSizes
-ScienceSampleSizesPerc
-
-### All combinations ----
-Science_SampleSizes_All <- ddply(Sciencesurvey_data, .(School, Grade, Gender, Race2), summarise, .drop = FALSE,
-                                 n = n())
-Science_SampleSizes_All
-
-### Interactions ----
-Science_SampleSizes_SchoolGrade <- ddply(Sciencesurvey_data, .(School, Grade), summarise, .drop = FALSE,
-                                         n = n())
-Science_SampleSizes_SchoolGender <- ddply(Sciencesurvey_data, .(School, Gender), summarise, .drop = FALSE,
-                                          n = n())
-Science_SampleSizes_SchoolRace <- ddply(Sciencesurvey_data, .(School, Race2), summarise, .drop = FALSE,
-                                        n = n())
-Science_SampleSizes_GradeGender <- ddply(Sciencesurvey_data, .(Grade, Gender), summarise, .drop = FALSE,
-                                         n = n())
-Science_SampleSizes_GradeRace <- ddply(Sciencesurvey_data, .(Grade, Race2), summarise, .drop = FALSE,
-                                       n = n())
-Science_SampleSizes_GenderRace <- ddply(Sciencesurvey_data, .(Gender, Race2), summarise, .drop = FALSE,
-                                        n = n())
-
-Science_SampleSizes_SchoolGrade
-Science_SampleSizes_SchoolGender
-Science_SampleSizes_SchoolRace
-Science_SampleSizes_GradeGender
-Science_SampleSizes_GradeRace
-Science_SampleSizes_GenderRace
-
-## Manipulate data ----
-Sciencesurvey_data <- Sciencesurvey_data |>
-  mutate(
-    ScienceScoreScaled = (ScienceScore - 1)/4
-  ) |>
-  mutate(
-    ScienceScoreScaled2 = ifelse(ScienceScoreScaled == 0, 0.00001, 
-                                 ifelse(ScienceScoreScaled == 1, 0.99999, ScienceScoreScaled))
-  )
-
-
-## Plot Data ----
-### Density ----
-parse_fact <- c(
-  #"School"#,
-  #"Grade"#,
-  #"Gender"#,
-  "Race2"
-)
-ggplot(data = Sciencesurvey_data) +
-  geom_histogram(aes(x = ScienceScore, after_stat(density), fill = !!sym(parse_fact)
-  ),
-  binwidth = 0.25,
-  position = position_dodge()) +
-  geom_density(aes(x = ScienceScore
-  )) +
-  facet_wrap(vars(!!sym(parse_fact))) +
-  theme_bw() +
-  theme(
-    legend.position = "bottom"
-  )
-
-### Survey Distribution Barplots----
-SSTEM_Science_df <- data.frame(Sciencesurvey_data |> 
-                                 select(str_subset(colnames(Sciencesurvey_data), pattern = "Science_")))
-SSTEM_Science_df <- SSTEM_Science_df |>
-  mutate(
-    across(everything(), 
-           ~ factor(.x, levels = c(1,2,3,4,5), ordered = TRUE))
-  )
-
-SSTEM_Science_labels <- str_subset(SSTEMsurvey_questions, pattern = "Science - ")
-SSTEM_Science_labels <- str_replace(SSTEM_Science_labels, pattern = "Science - ", replacement = "")
-colnames(SSTEM_Science_df) <- SSTEM_Science_labels
-
-#### No Grouping ----
-SSTEMlikertScience <- likert(SSTEM_Science_df)
-plot(SSTEMlikertScience) +
-  labs(title = "Science items",
-       subtitle = "Ordered by positive response percentage")
-
-#### Grouping ----
-groupingColumn <- "Race2"
-mathGrouping <- Sciencesurvey_data |> pull(groupingColumn)
-SSTEMlikertScience <- likert(SSTEM_Science_df, grouping = mathGrouping)
-plot(SSTEMlikertScience) +
-  labs(title = paste0("Science items parsed by ", groupingColumn),
-       subtitle = "Ordered by positive response percentage")
-
-
-
-
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# EngTech CONSTRUCT ====================================================================================
-## Filter Data ----
-EngTechsurvey <- mySurvey |>
-  select(
-    Semester,
-    YearSemester,
-    School,
-    Grade,
-    Gender,
-    Gender2,
-    Race,
-    Race2,
-    str_which(colnames(mySurvey), pattern = "EngTech")
+    str_which(colnames(SSTEMsurvey_df), pattern = "EngTech"),
+    -MeanEngTechScore
   ) 
 
 ## Check Cronbach alpha of EngTech Questions
@@ -873,7 +254,7 @@ hist((EngTechsurvey_data$MeanEngTechScore))
 plot(density(EngTechsurvey_data$MeanEngTechScore))
 
 hist((EngTechsurvey_data$EngTechScore))
-plot(density(EngTechsurvey_data$EngTechScore))
+plot(density(log(EngTechsurvey_data$EngTechScore)))
 
 hist((EngTechsurvey_data$SumEngTechScore))
 plot(density(EngTechsurvey_data$SumEngTechScore))
@@ -939,24 +320,475 @@ EngTechsurvey_data <- EngTechsurvey_data |>
                                  ifelse(EngTechScoreScaled == 1, 0.99999, EngTechScoreScaled))
   )
 
-
 ## Plot Data ----
 ### Density ----
 parse_fact <- c(
-  #"School"#,
-  #"Grade"#,
-  #"Gender"#,
+  "YearSemester",
+  "School",
+  "Grade",
+  "Gender2",
   "Race2"
 )
-ggplot(data = EngTechsurvey_data) +
-  geom_histogram(aes(x = EngTechScore, after_stat(density), fill = !!sym(parse_fact)
-  ),
-  binwidth = 0.25,
-  position = position_dodge()) +
-  geom_density(aes(x = EngTechScore
-  )) +
-  facet_wrap(vars(!!sym(parse_fact))) +
-  theme_bw() +
-  theme(
-    legend.position = "bottom"
+
+t.test(EngTechsurvey_data$EngTechScore)
+for(i in 1:length(parse_fact)){
+  fact <- parse_fact[i]
+  test <- EngTechsurvey_data |>
+    group_by(!!(sym(fact))) |>
+    summarise(
+      Mean = mean(EngTechScore),
+      SE = t.test(EngTechScore, var.equal = FALSE)$stderr,
+      LCB = t.test(EngTechScore, var.equal = FALSE)$conf.int[1],
+      UCB = t.test(EngTechScore, var.equal = FALSE)$conf.int[2]
+    )
+  print(test)
+}
+
+EngTechsurvey_data |>
+  group_by(Gender2, Race2) |>
+  summarise(
+    Mean = mean(EngTechScore),
+    SE = t.test(EngTechScore, var.equal = FALSE)$stderr,
+    LCB = t.test(EngTechScore, var.equal = FALSE)$conf.int[1],
+    UCB = t.test(EngTechScore, var.equal = FALSE)$conf.int[2]
   )
+
+fact_plots <- list()
+for(i in 1:length(parse_fact)){
+  fact <- parse_fact[i]
+  fact_plot <- ggplot(data = EngTechsurvey_data) +
+    geom_histogram(aes(x = EngTechScore, after_stat(density), fill = !!sym(fact)),
+                   #binwidth = 0.25,
+                   position = position_dodge()) +
+    geom_density(aes(x = EngTechScore)) +
+    facet_wrap(vars(!!sym(fact))) +
+    theme_bw() +
+    theme(
+      legend.position = "bottom"
+    )
+  fact_plots[[i]] <- fact_plot
+}
+
+cowplot::plot_grid(plotlist = fact_plots, ncol = 2)
+
+fact_plots2 <- list()
+for(i in 1:length(parse_fact)){
+  fact <- parse_fact[i]
+  fact_plot <- ggplot(data = EngTechsurvey_data) +
+    geom_point(aes(x = !!sym(fact), EngTechScore, color = !!sym(fact))) +
+    geom_boxplot(aes(x = !!sym(fact), EngTechScore, color = !!sym(fact))) +
+    theme_bw() +
+    theme(
+      legend.position = "bottom"
+    )
+  fact_plots2[[i]] <- fact_plot
+}
+
+cowplot::plot_grid(plotlist = fact_plots2, ncol = 2)
+
+
+### Survey Distribution Barplots----
+SSTEM_EngTech_df <- data.frame(EngTechsurvey_data |> 
+                                 select(str_subset(colnames(EngTechsurvey_data), pattern = "EngTech_")))
+SSTEM_EngTech_df <- SSTEM_EngTech_df |>
+  mutate(
+    across(everything(), 
+           ~ factor(.x, levels = c(1,2,3,4,5), ordered = TRUE))
+  )
+
+SSTEM_EngTech_labels <- str_subset(SSTEMsurvey_questions, pattern = "EngTech - ")
+SSTEM_EngTech_labels <- str_replace(SSTEM_EngTech_labels, pattern = "EngTech - ", replacement = "")
+colnames(SSTEM_EngTech_df) <- SSTEM_EngTech_labels
+
+#### No Grouping ----
+SSTEMlikertEngTech <- likert(SSTEM_EngTech_df)
+plot(SSTEMlikertEngTech) +
+  labs(title = "EngTech items",
+       subtitle = "Ordered by positive response percentage")
+
+#### Grouping ----
+groupingColumn <- "Race2"
+mathGrouping <- EngTechsurvey_data |> pull(groupingColumn)
+SSTEMlikertEngTech <- likert(SSTEM_EngTech_df, grouping = mathGrouping)
+plot(SSTEMlikertEngTech) +
+  labs(title = paste0("EngTech items parsed by ", groupingColumn),
+       subtitle = "Ordered by positive response percentage")
+
+# 3. Linear Regression ----
+## Frequentist ----
+### No Random Effects ----
+#### Model 1 ----
+linM1 <- lm(data = EngTechsurvey_data,
+            EngTechScore ~ School + Grade + Gender2 + Race2 + Gender2:Race2
+)
+summary(linM1)
+step(linM1, direction = "both")
+
+#### Model 2 ----
+linM2 <- lm(data = EngTechsurvey_data,
+            EngTechScore ~ School + Gender2 + Race2 + Gender2:Race2
+)
+summary(linM2)
+
+emmeans(linM2, specs = "School")
+
+linM3 <- lm(data = EngTechsurvey_data,
+            EngTechScore ~ School + Race2
+)
+
+### Table Report ----
+EngTech_reg_sum <- linM3 |>
+  tbl_regression(
+    conf.level = 0.95,
+    intercept = TRUE
+  ) |>
+  # add_global_p(type = 2, #test.statistic = "LR",
+  #              keep = FALSE) |>
+  add_n(location = c("level")) |> # add number of obs
+  # add_significance_stars(pattern = "{p.value}{stars}",
+  #                        thresholds = c(0.001, 0.01, 0.1),
+  #                        hide_ci = FALSE,
+  #                        hide_p = FALSE) |>
+  # add_glance_source_note(
+  # ) |>
+  # # Format
+  # bold_p(t = 0.05) |> 
+  italicize_levels() |>
+  # Titles
+  modify_caption("**Model Summary for EngTech Self-Efficacy**") |>
+  modify_header(label = "**Variable**") |>
+  modify_column_hide(p.value) |>
+  modify_footnote(ci = "CI = Credible Interval") |>
+  as_gt() |>
+  cols_label(estimate = md("$$\beta$$"))
+
+EngTech_reg_sum
+show_header_names(EngTech_reg_sum)
+
+# Check assumptions
+# Linearity
+par(mfrow = c(2,2))
+plot(linM2)
+# Normality
+shapiro.test(linM2$residuals)
+# Independence
+DurbinWatsonTest(linM2)
+# Constant Variance
+ncvTest(linM2)
+
+### With Random Effects ----
+linR1 <- lmerTest::lmer(
+  EngTechScore ~ School + Grade + Gender2 + Race2 + Gender2:Race2 + (1|YearSemester),
+  data = EngTechsurvey_data
+)
+lmerTest::step(linR1)
+
+linR2 <- lmerTest::lmer(
+  EngTechScore ~ School + Race2 + (1|YearSemester),
+  data = EngTechsurvey_data
+)
+anova(linR2, linM3)
+anova()
+
+## Bayesian ----
+### General Bayes ----
+blinGen <- generalTestBF(
+  EngTechScore ~ School + Grade + Gender2 + Race2 + Gender2:Race2 + YearSemester,
+  data = EngTechsurvey_data, 
+  whichRandom = "YearSemester"
+)
+sort(blinGen)
+
+blinGen2 <- generalTestBF(
+  EngTechScore ~ School + Grade + Gender2 + Race2 + Gender2:Race2 + YearSemester,
+  data = EngTechsurvey_data
+)
+sort(blinGen2)
+
+### Model 1 ----
+blinM1NULL <- brm(
+  EngTechScore ~ 1,
+  data = EngTechsurvey_data,
+  family = gaussian(),
+  seed = 52,
+  save_pars = save_pars(all = TRUE),
+  control = list(adapt_delta = 0.95)
+)
+
+#### No Random Effects ----
+blinM1 <- brm(
+  EngTechScore ~ School + Race2 + YearSemester,
+  data = EngTechsurvey_data,
+  family = gaussian(),
+  seed = 52,
+  prior = c(prior(normal(3,10), class = Intercept),
+            prior(normal(0,10), class = b),
+            prior(inv_gamma(0.1, 0.1), class = sigma)),
+  save_pars = save_pars(all = TRUE),
+  control = list(adapt_delta = 0.95)
+)
+prior_summary(blinM1)
+get_variables(blinM1)
+print(blinM1, digits = 4)
+
+
+blinM1B <- brm(
+  EngTechScore ~ School + Gender2 + Race2 + Gender2:Race2 + YearSemester,
+  data = EngTechsurvey_data,
+  family = gaussian(),
+  seed = 52,
+  prior = c(prior(normal(3,10), class = Intercept),
+            prior(normal(0,10), class = b),
+            prior(inv_gamma(0.1, 0.1), class = sigma)),
+  save_pars = save_pars(all = TRUE),
+  control = list(adapt_delta = 0.95)
+)
+prior_summary(blinM1)
+get_variables(blinM1)
+print(blinM1, digits = 4)
+
+bayes_factor(blinM1B, blinM1)
+
+blinM1C <- brm(
+  EngTechScore ~ School + Gender2 + Race2 + Gender2:Race2,
+  data = EngTechsurvey_data,
+  family = gaussian(),
+  seed = 52,
+  prior = c(prior(normal(3,10), class = Intercept),
+            prior(normal(0,10), class = b),
+            prior(inv_gamma(0.1, 0.1), class = sigma)),
+  save_pars = save_pars(all = TRUE),
+  control = list(adapt_delta = 0.95)
+)
+prior_summary(blinM1)
+get_variables(blinM1)
+print(blinM1, digits = 4)
+
+blinM1D <- brm(
+  EngTechScore ~ School + Race2,
+  data = EngTechsurvey_data,
+  family = gaussian(),
+  seed = 52,
+  prior = c(prior(normal(3,10), class = Intercept),
+            prior(normal(0,10), class = b),
+            prior(inv_gamma(0.1, 0.1), class = sigma)),
+  save_pars = save_pars(all = TRUE),
+  control = list(adapt_delta = 0.95)
+)
+prior_summary(blinM1)
+get_variables(blinM1)
+print(blinM1, digits = 4)
+
+bayes_factor(blinM1D, blinM1)
+bayes_factor(blinM1D, blinM1B)
+bayes_factor(blinM1D, blinM1C)
+
+
+#### With Random Effects ----
+blinM2 <- brm(
+  EngTechScore ~ School + Race2 + (1|YearSemester),
+  data = EngTechsurvey_data,
+  family = gaussian(),
+  seed = 52,
+  prior = c(prior(normal(3,10), class = Intercept),
+            prior(normal(0,10), class = b),
+            prior(inv_gamma(0.1, 0.1), class = sigma),
+            prior(inv_gamma(0.1, 0.1), class = sd)),
+  save_pars = save_pars(all = TRUE),
+  control = list(adapt_delta = 0.95)
+)
+prior_summary(blinM2)
+get_variables(blinM2)
+print(blinM2, digits = 4)
+variance_decomposition(blinM2)
+fixef(blinM2)
+ranef(blinM2)
+posterior_summary(blinM2)
+
+bayes_factor(blinM2, blinM1)
+bayes_factor(blinM2, blinM1D)
+
+blinM2B <- brm(
+  EngTechScore ~ School + Gender2 + Race2 + Gender2:Race2 + (1|YearSemester),
+  data = EngTechsurvey_data,
+  family = gaussian(),
+  seed = 52,
+  prior = c(prior(normal(3,10), class = Intercept),
+            prior(normal(0,10), class = b),
+            prior(inv_gamma(0.1, 0.1), class = sigma),
+            prior(inv_gamma(0.1, 0.1), class = sd)),
+  save_pars = save_pars(all = TRUE),
+  control = list(adapt_delta = 0.95)
+)
+
+bayes_factor(blinM2, blinM2B)
+
+
+#### With Random Slopes ----
+blinM3 <- brm(
+  EngTechScore ~ School + Race2 + (0 + School|YearSemester),
+  data = EngTechsurvey_data,
+  family = gaussian(),
+  seed = 52,
+  prior = c(prior(normal(3,10), class = Intercept),
+            prior(normal(0,10), class = b),
+            prior(inv_gamma(0.1, 0.1), class = sigma),
+            prior(inv_gamma(0.1, 0.1), class = sd)),
+  save_pars = save_pars(all = TRUE),
+  control = list(adapt_delta = 0.95)
+)
+prior_summary(blinM3)
+get_variables(blinM3)
+print(blinM3, digits = 4)
+variance_decomposition(blinM3)
+fixef(blinM3)
+ranef(blinM3)
+posterior_summary(blinM3)
+
+bayes_factor(blinM3, blinM1D)
+bayes_factor(blinM3, blinM2)
+
+blinPostSum <- posterior_summary(blinM2, variable = get_variables(blinM1)[1:4])
+blinPostSum <- data.frame(blinPostSum)
+blinPostSum
+plot(blinM2)
+
+
+
+
+### Final Model ----
+load(file = "Analyses/STEM Self-Efficacy/EngTech Data.RData")
+finalModel <- blinM1EngTech
+finalModel <- brm(
+  EngTechScore ~ School + Race2,
+  data = EngTechsurvey_data,
+  family = gaussian(),
+  seed = 52,
+  prior = c(prior(normal(3,10), class = Intercept),
+            prior(normal(0,10), class = b),
+            prior(inv_gamma(0.1, 0.1), class = sigma)
+            ),
+  save_pars = save_pars(all = TRUE),
+  iter = 5000,
+  control = list(adapt_delta = 0.99)
+)
+print(finalModel, digits = 4)
+plot(finalModel)
+loo(finalModel)
+performance::check_distribution(finalModel)
+performance::check_outliers(finalModel)
+performance::check_heteroskedasticity(finalModel)
+performance_rmse(finalModel)
+blinPostSumEngTech <- data.frame(posterior_summary(finalModel, variable = get_variables(finalModel)[1:5]))
+blinPostSumEngTech
+fixef(finalModel)
+ranef(finalModel)
+
+pp_check(finalModel, ndraws = 82, type = "dens_overlay_grouped",
+         group = "Race2")
+
+blinPreds <- posterior_predict(finalModel)
+blinEPreds <- posterior_epred(finalModel)
+blinDraws <- as_draws_df(finalModel)
+blinLinPred <- posterior_linpred(finalModel)
+
+MCMC_data <- mcmc_areas_data(finalModel, pars = get_variables(finalModel)[1:5], prob = 0.95)
+mcmc_areas(finalModel, prob = 0.95, pars = get_variables(finalModel)[1:5]) +
+  theme_bw()
+
+
+blinEMM_EngTech_School <- emmeans(finalModel, specs = c("School"), epred = TRUE)
+blinEMM_EngTech_SchoolSum <- summary(blinEMM_EngTech_School, point.est = "mean", digits = 3) |>
+  mutate(
+    School = c("West Edgecombe\nMiddle School", "Phillips\nMiddle School")
+  ) |>
+  rename(
+    Mean = emmean,
+    LCB = lower.HPD,
+    UCB = upper.HPD
+  )
+blinEMM_EngTech_SchoolSum
+
+
+blinEMM_EngTech_Race2 <- emmeans(finalModel, specs = c("Race2"), epred = TRUE)
+blinEMM_EngTech_Race2Sum <- summary(blinEMM_EngTech_Race2, point.est = "mean", digits = 3) |>
+  rename(
+    Mean = emmean,
+    LCB = lower.HPD,
+    UCB = upper.HPD
+  )
+blinEMM_EngTech_Race2Sum
+
+
+conditional_effects(finalModel)
+finalConds <- make_conditions(finalModel, vars = "School")
+condEffectsFinal <- conditional_effects(finalModel, effects = "Race2", conditions = finalConds)
+condEffectsFinal
+
+blinM1EngTech <- finalModel
+save(EngTechsurvey_data,
+     blinM1EngTech,
+     blinPostSumEngTech,
+     blinEMM_EngTech_SchoolSum,
+     blinEMM_EngTech_Race2Sum,
+     file = "Analyses/STEM Self-Efficacy/EngTech Data.RData")
+
+
+
+EngTech_School_plot <- ggplot(data = blinEMM_EngTech_SchoolSum) +
+  geom_errorbarh(aes(xmin = LCB, xmax = UCB, y = School),
+                 color = "dodgerblue2", height = 0.5) +
+  geom_point(aes(x = Mean, y = School),
+             color = "dodgerblue2", size = 3) +
+  scale_x_continuous(limits = c(1, 5), 
+                     breaks = seq(1,5, by = 1),
+                     minor_breaks = seq(1,5, by = 0.25)) +
+  scale_y_discrete(name = "School",
+                   limits = rev(blinEMM_EngTech_SchoolSum$School)) +
+  labs(x = "Mean Engineering and Technology Construct Score") +
+  theme_bw()
+EngTech_School_plot
+
+
+EngTech_Race_plot <- ggplot(data = blinEMM_EngTech_Race2Sum) +
+  geom_errorbarh(aes(xmin = LCB, xmax = UCB, y = Race2),
+                 color = "dodgerblue4", height = 0.5) +
+  geom_point(aes(x = Mean, y = Race2),
+             color = "dodgerblue4", size = 3) +
+  scale_x_continuous(limits = c(1, 5), 
+                     breaks = seq(1,5, by = 1),
+                     minor_breaks = seq(1,5, by = 0.25)) +
+  scale_y_discrete(name = "Race",
+                   limits = rev(blinEMM_EngTech_Race2Sum$Race2), 
+                   labels = c("Other",
+                              "Black_African American" = "Black/African American",
+                              "White_Caucasian" = "White/Caucasian",
+                              "Hispanic_Latino" = "Hispanic/Latino")) +
+  labs(x = "Mean Engineering and Technology Construct Score") +
+  theme_bw()
+EngTech_Race_plot
+
+EngTech_School_plot / EngTech_Race_plot +
+  plot_layout(
+    axes = "collect_x",
+    heights = c(1,2)
+  ) +
+  plot_annotation(
+    title = "S-STEM Engineering and Technology Construct Score by School and Gender",
+    subtitle = "95% Credible Interval about Expected Marginal Mean",
+    theme = theme(
+      plot.title.position = "plot",
+      plot.title = element_text(face = "bold"),
+      plot.subtitle = element_text(face = "italic")
+    )
+  ) &
+  theme(
+    plot.title = element_text(size = 16),
+    plot.subtitle = element_text(size = 14),
+    axis.title = element_text(size = 12),
+    axis.text = element_text(size = 10),
+    panel.grid.major.y = element_blank()
+  )
+
+
+

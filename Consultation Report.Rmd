@@ -10,6 +10,7 @@ header-includes:
   - \floatplacement{figure}{H}
   - \usepackage{amsmath}
   - \usepackage{multicol}
+  - \usepackage{multirow}
   - \usepackage{makecell}
   - \usepackage{cancel}
 geometry: "left=1in,right=1in,top=1in,bottom=1in"
@@ -192,6 +193,37 @@ Residuals & 11472.2 & 209
 \end{center}
 \end{table}
 
+## Ordinal Regression
+$$
+\begin{aligned}
+Y_i &= 
+\begin{cases}
+\text{Not Proficient} & Y_i^\ast \leq \theta_1 \\
+\text{Level 3} & \theta_1 < Y_i^\ast \leq \theta_2 \\
+\text{Level 4} & \theta_2 < Y_i^\ast \leq \theta_3 \\
+\text{Level 5} & \theta_3 < Y_i^\ast \\
+\end{cases} \\
+& \text{ for } i = 1,..., N = 102 \\
+& \text{ for } j = 1,..., 4 \\
+\\
+Y_i^\ast &\sim Normal(\mu_i, \sigma^2) \\
+\\
+P(Y_i &= \text{Not Proficient}|\mu_i,\sigma^2 = 1, \theta_j) = P(Y^\ast \leq \theta_1) = \Phi(\theta_1 - \mu_i) \\
+P(Y_i &= \text{Level 3}|\mu_i,\sigma^2 = 1, \theta_j) = P(\theta_1 <Y^\ast \leq \theta_2) = \Phi(\theta_2 - \mu_i) - \Phi(\theta_1 - \mu_i) \\
+P(Y_i &= \text{Level 4}|\mu_i,\sigma^2 = 1, \theta_j) = P(\theta_2 <Y^\ast \leq \theta_3) = \Phi(\theta_3 - \mu_i) - \Phi(\theta_2 - \mu_i) \\
+P(Y_i &= \text{Level 5}|\mu_i,\sigma^2 = 1, \theta_j) = P(\theta_3 < Y^\ast) = 1 - \Phi(\theta_3 - \mu_i) \\
+\\
+\mu_i &= \beta_0 + \beta_1(\text{sexF}_i) + \beta_2(\text{ethnicH}_i) + \beta_3(\text{ethnicM}_i) + \beta_4(\text{ethnicW}_i) \\
+& + \beta_5(\text{dosage}_i) + \beta_6(\text{dosage}^2_i) + \beta_7(\text{Level\_5}_i) + \beta_8(\text{Level\_5}^2_i) \\
+& + \beta_9(\text{dosage}_i)(\text{Level\_5}_i) + \beta_{10}(\text{dosage}^2_i)(\text{Level\_5}_i) \\
+& + \beta_{11}(\text{dosage}_i)(\text{Level\_5}^2_i) + \beta_{12}(\text{dosage}^2_i)(\text{Level\_5}^2_i) \\
+\beta_0 &= 0 \\
+\sigma^2 & = 1 \\
+\beta_1,..,\beta_{12} &\sim \text{Normal}(0, 10) \text{, uninformative priors} \\
+\theta_1, ..., \theta_3 &\sim \text{Normal}(0, 10) \text{, uninformative priors}
+\end{aligned}
+$$
+
 ## Logistical Regression Modeling
 
 $$
@@ -209,6 +241,24 @@ $$
 
 
 ## Bayesian regression modeling
+$$
+\begin{aligned}
+Y_{i} & \sim \text{Normal}(\theta_{t_i} + \mu_{i}, \sigma^2) \\
+& t = 1,2,3 \hspace{3mm} \text{ for the three S-STEM survey times} \\
+& i = 1, ..., n \hspace{3mm} \text{ for the number survey responses} \\
+\\
+\mu_{i} &= \beta_0 + \beta_1(\text{SchoolPhillipsMiddleSchool}_i) \\
+& + \beta_2(\text{Grade7th}_i) + \beta_3(\text{Grade8th}_i) + \beta_4(\text{Gender2NotMale}_i) \\
+& + \beta_5(\text{Race2Black\_AfricanAmerican}_i) + \beta_6(\text{Race2Hispanic\_Latino}_i) \\
+& + \beta_7(\text{Race2White\_Casucasian}_i) \\
+\\
+\beta_0 &\sim \text{Normal}(0,10) \hspace{3mm} \text{for the intercept}\\
+\beta_1,..., \beta_7 &\sim \text{Normal}(0,10) \hspace{3mm} \text{for fixed effects} \\
+\theta_{t_i} &\sim \text{Normal}(0, \tau^2) \hspace{3mm} \text{Random effect for survey time } t \text{ of response } i \\
+\sigma^2 &\sim \text{InvGamma}(0.1, 0.1) \\
+\tau^2 &\sim \text{InvGamma}(0.1, 0.1) \\
+\end{aligned}
+$$
 
 # Results
 ## Impact on disciplinary-based knowledge through EOG science test
@@ -219,6 +269,24 @@ $$
 ```{r STEM Career Awareness Scientist Load}
 load(file = "Analyses/STEM Career Awareness/CareerAwarenessScientist.RData")
 ```
+
+\begin{table}[H]
+\begin{center}
+\begin{tabular}{lcc}
+\multicolumn{3}{c}{\textbf{Expected Marginal Probability of Career}} \\ 
+\multicolumn{3}{c}{\textbf{Awareness for Scientists}} \\ \Xhline{3\arrayrulewidth}
+\textbf{Variable} & $\textbf{EMP}^1$ & $\textbf{95\% CI}^2$ \\ \Xhline{3\arrayrulewidth}
+Gender & &  \\
+\hspace{3mm} Male & 0.36 & (0.21, 0.53) \\
+\hspace{3mm} Not Male$^3$ & 0.08 & (0.03, 0.21) \\ \hline
+\multicolumn{3}{l}{$^1$ \footnotesize EMM = Expected Marginal Probability} \\
+\multicolumn{3}{l}{$^2$ \footnotesize CI = Credible Interval} \\ 
+\multicolumn{3}{l}{$^3$ \footnotesize Includes Females and Other} \\ \Xhline{3\arrayrulewidth}
+\end{tabular}
+\end{center}
+\end{table}
+
+\normalsize
 
 \begin{table}[H]
 \begin{center}
@@ -304,10 +372,39 @@ awarenessSci_plot_Gender
 ```
 
 ## Students' STEM interest
-
+```{r}
+load(file = "Analyses/STEM Interest/Interest Data.RData")
+kruskalOut <- SigAllkruskal |>
+  mutate(
+    "pvalue" = paste0(p.chisq, Significance)
+  )
+```
 
 ## Students' STEM identity
-
+\begin{table}[H]
+\begin{center}
+\begin{tabular}{llccr}
+\multicolumn{5}{c}{\textbf{Significant Kruskal-Wallis H Tests for All Interest Areas}} \\ \Xhline{3\arrayrulewidth}
+\textbf{Interest Area} & \textbf{Variable} & $\boldsymbol{\chi^2}$ & $\textbf{Df}^1$ & $\textbf{p-value}^2$ \\ \Xhline{3\arrayrulewidth}
+\multirow{2}{*}{`r kruskalOut$Area[1]`} & `r kruskalOut$Variable[1]` & `r round(kruskalOut$Chisq[1],2)` & `r kruskalOut$Df[1]` & `r kruskalOut$pvalue[1]` \\ 
+                                        & `r kruskalOut$Variable[2]` & `r round(kruskalOut$Chisq[2],2)` & `r kruskalOut$Df[2]` & `r kruskalOut$pvalue[2]` \\ \hline
+`r kruskalOut$Area[3]` & `r kruskalOut$Variable[3]` & `r round(kruskalOut$Chisq[3],2)` & `r kruskalOut$Df[3]` & `r kruskalOut$pvalue[3]` \\ \hline
+`r kruskalOut$Area[4]` & `r kruskalOut$Variable[4]` & `r round(kruskalOut$Chisq[4],2)` & `r kruskalOut$Df[4]` & `r kruskalOut$pvalue[4]` \\ \hline
+\multirow{2}{*}{`r kruskalOut$Area[5]`} & `r kruskalOut$Variable[5]` & `r round(kruskalOut$Chisq[5],2)` & `r kruskalOut$Df[5]` & `r kruskalOut$pvalue[5]` \\ 
+                                        & `r kruskalOut$Variable[6]` & `r round(kruskalOut$Chisq[6],2)` & `r kruskalOut$Df[6]` & `r kruskalOut$pvalue[6]` \\ \hline
+`r kruskalOut$Area[7]` & `r kruskalOut$Variable[7]` & `r round(kruskalOut$Chisq[7],2)` & `r kruskalOut$Df[7]` & `r kruskalOut$pvalue[7]` \\ \hline
+`r kruskalOut$Area[8]` & `r kruskalOut$Variable[8]` & `r round(kruskalOut$Chisq[8],2)` & `r kruskalOut$Df[8]` & `r kruskalOut$pvalue[8]` \\ \hline
+`r kruskalOut$Area[9]` & `r kruskalOut$Variable[9]` & `r round(kruskalOut$Chisq[9],2)` & `r kruskalOut$Df[9]` & `r kruskalOut$pvalue[9]` \\ \hline
+\multirow{2}{*}{`r kruskalOut$Area[10]`} & `r kruskalOut$Variable[10]` & `r round(kruskalOut$Chisq[10],2)` & `r kruskalOut$Df[10]` & `r kruskalOut$pvalue[10]` \\ 
+                                        & `r kruskalOut$Variable[11]` & `r round(kruskalOut$Chisq[11],2)` & `r kruskalOut$Df[11]` & `r kruskalOut$pvalue[11]` \\ \hline
+\multirow{2}{*}{`r kruskalOut$Area[12]`} & `r kruskalOut$Variable[12]` & `r round(kruskalOut$Chisq[12],2)` & `r kruskalOut$Df[12]` & `r kruskalOut$pvalue[12]` \\ 
+                                        & `r kruskalOut$Variable[13]` & `r round(kruskalOut$Chisq[13],2)` & `r kruskalOut$Df[13]` & `r kruskalOut$pvalue[13]` \\ \hline
+`r kruskalOut$Area[14]` & `r kruskalOut$Variable[14]` & `r round(kruskalOut$Chisq[14],2)` & `r kruskalOut$Df[14]` & `r kruskalOut$pvalue[14]` \\ \hline
+\multicolumn{5}{l}{$^1$ \footnotesize Df = Degrees of Freedom} \\ 
+\multicolumn{5}{l}{$^2$ \footnotesize $p < 0.05^\ast$; $p < 0.01^\ast$; $p < 0.001^\ast$} \\ \Xhline{3\arrayrulewidth}
+\end{tabular}
+\end{center}
+\end{table}
 
 ## Students' STEM self-efficacy
 ### Math Construct
@@ -361,6 +458,52 @@ School & &  \\
 Gender & &  \\
 \hspace{3mm} Male & `r round(blinEMM_Gender2Sum$Mean[1], 2)` & (`r round(blinEMM_Gender2Sum$LCB[1], 2)`, `r round(blinEMM_Gender2Sum$UCB[1], 2)`)  \\
 \hspace{3mm} Not Male & `r round(blinEMM_Gender2Sum$Mean[2], 2)` & (`r round(blinEMM_Gender2Sum$LCB[2], 2)`, `r round(blinEMM_Gender2Sum$UCB[2], 2)`)  \\ \hline
+\multicolumn{3}{l}{$^1$ EMM = Expected Marginal Mean} \\
+\multicolumn{3}{l}{$^2$ CI = Credible Interval} \\ \Xhline{3\arrayrulewidth}
+\end{tabular}
+\end{center}
+\end{table}
+
+
+### Engineering and Technology
+```{r}
+load(file = "Analyses/STEM Self-Efficacy/EngTech Data.RData")
+```
+
+\begin{table}[H]
+\begin{center}
+\begin{tabular}{lcccc}
+\multicolumn{5}{c}{\textbf{Model Summary for Engineering and Technology Self-Efficacy}} \\ \Xhline{3\arrayrulewidth}
+\textbf{Variable} & \textbf{N} & $\boldsymbol{\beta}$ & $\textbf{SD}^1$ & $\textbf{95\% CI}^2$ \\ \Xhline{3\arrayrulewidth}
+Intercept & 76 & `r round(blinPostSumEngTech$Estimate[1], 2)` & `r round(blinPostSumEngTech$Est.Error[1], 2)` & (`r round(blinPostSumEngTech$Q2.5[1], 2)`, `r round(blinPostSumEngTech$Q97.5[1], 2)`) \\ \hline
+School & & & & \\
+\hspace{3mm} West Edgecombe Middle School & 23 & \textendash & \textendash & \textendash \\
+\hspace{3mm} Phillips Middle School & 53 & `r round(blinPostSumEngTech$Estimate[2], 2)` & `r round(blinPostSumEngTech$Est.Error[2], 2)` & (`r round(blinPostSumEngTech$Q2.5[2], 2)`, `r round(blinPostSumEngTech$Q97.5[2], 2)`) \\ \hline
+Race & & & & \\
+\hspace{3mm} Other & 9 & \textendash & \textendash & \textendash \\
+\hspace{3mm} Black/African American & 42 & `r round(blinPostSumEngTech$Estimate[3], 2)` & `r round(blinPostSumEngTech$Est.Error[3], 2)` & (`r round(blinPostSumEngTech$Q2.5[3], 2)`, `r round(blinPostSumEngTech$Q97.5[3], 2)`) \\
+\hspace{3mm} White/Caucasian & 14 & `r round(blinPostSumEngTech$Estimate[4], 2)` & `r round(blinPostSumEngTech$Est.Error[4], 2)` & (`r round(blinPostSumEngTech$Q2.5[4], 2)`, `r round(blinPostSumEngTech$Q97.5[4], 2)`) \\
+\hspace{3mm} Hispanic/Latino & 11 & `r round(blinPostSumEngTech$Estimate[5], 2)` & `r round(blinPostSumEngTech$Est.Error[5], 2)` & (`r round(blinPostSumEngTech$Q2.5[5], 2)`, `r round(blinPostSumEngTech$Q97.5[5], 2)`) \\ \hline
+\multicolumn{5}{l}{$^1$ SD = Standard Deviation} \\ 
+\multicolumn{5}{l}{$^2$ CI = Credible Interval} \\ \Xhline{3\arrayrulewidth}
+\end{tabular}
+\end{center}
+\end{table}
+
+\begin{table}[H]
+\begin{center}
+\begin{tabular}{lcc}
+\multicolumn{3}{c}{\textbf{Expected Marginal Means for Engineering and Technology}} \\
+\multicolumn{3}{c}{\textbf{Self-Efficacy}} \\ \Xhline{3\arrayrulewidth}
+\textbf{Variable} & $\textbf{EMM}^1$ & $\textbf{95\% CI}^2$ \\ \Xhline{3\arrayrulewidth}
+School & &  \\
+\hspace{3mm} West Edgecombe Middle School & `r round(blinEMM_EngTech_SchoolSum$Mean[1], 2)` & (`r round(blinEMM_EngTech_SchoolSum$LCB[1], 2)`, `r round(blinEMM_EngTech_SchoolSum$UCB[1], 2)`) \\
+\hspace{3mm} Phillips Middle School & `r round(blinEMM_EngTech_SchoolSum$Mean[2], 2)` & (`r round(blinEMM_EngTech_SchoolSum$LCB[2], 2)`, `r round(blinEMM_EngTech_SchoolSum$UCB[2], 2)`) \\ \hline
+Race & &  \\
+\hspace{3mm} Other & `r round(blinEMM_EngTech_Race2Sum$Mean[1], 2)` & (`r round(blinEMM_EngTech_Race2Sum$LCB[1], 2)`, `r round(blinEMM_EngTech_Race2Sum$UCB[1], 2)`)  \\
+\hspace{3mm} Black/African American & `r round(blinEMM_EngTech_Race2Sum$Mean[2], 2)` & (`r round(blinEMM_EngTech_Race2Sum$LCB[2], 2)`, `r round(blinEMM_EngTech_Race2Sum$UCB[2], 2)`)  \\
+\hspace{3mm} White/Caucasian & `r round(blinEMM_EngTech_Race2Sum$Mean[3], 2)` & (`r round(blinEMM_EngTech_Race2Sum$LCB[3], 2)`, `r round(blinEMM_EngTech_Race2Sum$UCB[3], 2)`)  \\
+\hspace{3mm} Hispanic/Latino & `r round(blinEMM_EngTech_Race2Sum$Mean[4], 2)` & (`r round(blinEMM_EngTech_Race2Sum$LCB[4], 2)`, `r round(blinEMM_EngTech_Race2Sum$UCB[4], 2)`)  \\ \hline
 \multicolumn{3}{l}{$^1$ EMM = Expected Marginal Mean} \\
 \multicolumn{3}{l}{$^2$ CI = Credible Interval} \\ \Xhline{3\arrayrulewidth}
 \end{tabular}
