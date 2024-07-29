@@ -703,29 +703,34 @@ preds <- posterior_predict(brm10)
 
 # 8. FINAL MODEL ========================================================
 ## Final Model ----
-# brmpairFinal <- brm(Level_8 ~ ethnic + dosage2 + Level_5 + dosage2:Level_5,
-#                     data = EOGpaired_df, 
-#                     family = cumulative(link = "probit"), 
-#                     save_pars = save_pars(all = TRUE),
-#                     seed = 52, 
-#                     iter = 1000,
-#                     control = list(adapt_delta = 0.95),
-#                     backend = "cmdstanr"
-# )
-# 
-# save(brmpairFinal, 
-#      EOGnonpaired_df,
-#      EOGpaired_df,
-#      file = "Analyses/EOG Science/PairedOrdinalFit.RData")
+brmpairFinal <- brm(Level_8 ~ ethnic + dosage2 + Level_5 + dosage2:Level_5,
+                    data = EOGpaired_df,
+                    family = cumulative(link = "probit"),
+                    # prior = c(prior(normal(0,10), class = Intercept),
+                    #           prior(normal(0,10), class = b)),
+                    save_pars = save_pars(all = TRUE),
+                    seed = 52,
+                    iter = 5000,
+                    control = list(adapt_delta = 0.95)
+)
+
+save(brmpairFinal,
+     EOGnonpaired_df,
+     EOGpaired_df,
+     condPlotFac_df2,
+     file = "Analyses/EOG Science/PairedOrdinalFit.RData")
 
 ## Load Data and Model ----
 load(file = "Analyses/EOG Science/PairedOrdinalFit.RData")
 
+prior_summary(brmpairFinal)
+posterior_summary(brmpairFinal2)
 brmpairFinal
 loo(brmpairFinal)
 waic(brmpairFinal)
 bayes_R2(brmpairFinal)
 performance(brmpairFinal)
+bayes_factor(brmpairFinal, brmpairFinal2)
 
 tidy(brmpairFinal)
 
@@ -766,7 +771,7 @@ condPlotFac_df2 <- condPlotFac_df |>
     "Grade 8 Level" = effect2__
   )
 condPlotFac_df2
-writexl::write_xlsx(condPlotFac_df2, "Analyses/EOG Science/Conditional Probs for EOG Science.xlsx")
+#writexl::write_xlsx(condPlotFac_df2, "Analyses/EOG Science/Conditional Probs for EOG Science.xlsx")
 
 muted("red", l = 70, c = 70)
 "#F28F8F"

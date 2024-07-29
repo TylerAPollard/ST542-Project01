@@ -97,10 +97,7 @@ Interest <- SSTEMsurvey_data |>
     str_which(colnames(SSTEMsurvey_data), pattern = "Interest_")
   ) |>
   filter(
-    Gender %in% c("Male","Female")
-  ) |>
-  mutate(
-    Gender = droplevels(Gender)
+    complete.cases(Interest_Q1)
   )
 
 hist(Interest$Interest_Q1)
